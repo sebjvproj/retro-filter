@@ -15,12 +15,23 @@ sealed class OverlayForm : Form
     ID3D11Device? _device;
     Renderer? _renderer;
     WindowCapture? _capture;
+    readonly InfoBarForm _bar = new();
+    readonly System.Diagnostics.Stopwatch _statsClock = System.Diagnostics.Stopwatch.StartNew();
     Rectangle _bounds;
     bool _shown = true; // Show() rend la fenêtre visible ; Follow() la cache ensuite si besoin.
     int _mode;
+    string _stats = "";
+    string? _message;
+    DateTime _messageUntil;
 
     /// <summary>Pour les tests : reste affiché même si le jeu n'est pas au premier plan.</summary>
     public bool AlwaysVisible { get; init; }
+
+    /// <summary>Barre d'informations affichée en permanence (sinon seulement pour les messages brefs).</summary>
+    public bool InfoVisible { get; set; }
+
+    /// <summary>Ligne d'aide de la barre (raccourcis).</summary>
+    public string Hint { get; set; } = "";
 
     public IntPtr Game => _game;
 
@@ -67,6 +78,9 @@ sealed class OverlayForm : Form
         _capture.FrameArrived += _renderer.SubmitFrame;
         _capture.Closed += () => BeginInvoke(Close);
 
+        _bar.Owner = this; // toujours au-dessus de l'overlay
+        _ = _bar.Handle;   // créée maintenant, affichée par Follow()
+
         _follow.Tick += (_, _) => Follow();
         _follow.Start();
     }
@@ -98,6 +112,33 @@ sealed class OverlayForm : Form
             _renderer!.Paused = !visible;
             ShowWindow(Handle, visible ? SW_SHOWNOACTIVATE : SW_HIDE);
         }
+        UpdateInfoBar(visible);
+    }
+
+    void UpdateInfoBar(bool overlayVisible)
+    {
+        // Statistiques recalculées chaque seconde : la capture suit le rythme du jeu,
+        // donc ses images par seconde sont aussi celles du jeu.
+        if (_statsClock.Elapsed.TotalSeconds >= 1)
+        {
+            var (frames, average, _) = _renderer!.TakeStats();
+            double fps = frames / _statsClock.Elapsed.TotalSeconds;
+            _statsClock.Restart();
+            _stats = $"{FilterModes.All[_mode].Name}   {fps:F0} i/s   {average:F1} ms";
+        }
+
+        bool message = _message != null && DateTime.Now < _messageUntil;
+        if (message) _bar.SetText(_message!, InfoVisible ? Hint : "");
+        else _bar.SetText(_stats, Hint);
+        _bar.Place(new Point(_bounds.X + 8, _bounds.Y + 8), overlayVisible && (InfoVisible || message));
+    }
+
+    /// <summary>Affiche un message bref (2 s) dans la barre, même si elle est cachée.</summary>
+    public void ShowMessage(string text)
+    {
+        _message = text;
+        _messageUntil = DateTime.Now.AddSeconds(2);
+        if (IsHandleCreated) UpdateInfoBar(_shown);
     }
 
     protected override void OnResize(EventArgs e)
@@ -120,6 +161,7 @@ sealed class OverlayForm : Form
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         _follow.Dispose();
+        _bar.Dispose();
         _capture?.Dispose();
         _renderer?.Dispose();
         _device?.Dispose();

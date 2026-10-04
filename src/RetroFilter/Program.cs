@@ -199,7 +199,12 @@ static class Program
 
         Directory.CreateDirectory(directory);
         ApplicationConfiguration.Initialize();
-        var overlay = new OverlayForm(window.Handle, 0) { AlwaysVisible = true };
+        var overlay = new OverlayForm(window.Handle, 0)
+        {
+            AlwaysVisible = true,
+            InfoVisible = true,
+            Hint = "Ctrl+Alt + T mode, S image PNG, I infos, R retirer le filtre",
+        };
         var timer = new System.Windows.Forms.Timer { Interval = 3000 };
         timer.Tick += (_, _) =>
         {
