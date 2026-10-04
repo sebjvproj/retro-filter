@@ -10,9 +10,9 @@ static class Program
             return Snapshot(args[1], args[2], args.Length >= 4 ? int.Parse(args[3]) : 1, args.Length == 5 && args[4] == "rapide");
 
         // Mesure du débit de capture avec filtre : RetroFilter --fps "<partie du titre>" <priorité 0 normale, 1 haute, 2 temps réel>
-        // Ajouter « brut » à la fin pour mesurer la capture seule, sans filtre.
-        if (args.Length is 3 or 4 && args[0] == "--fps")
-            return Fps(args[1], int.Parse(args[2]), args.Length == 4 && args[3] == "brut");
+        // Options à la fin : « brut » mesure la capture seule, sans filtre ; « plafond » garde la limite de Windows.
+        if (args.Length >= 3 && args[0] == "--fps")
+            return Fps(args[1], int.Parse(args[2]), args.Skip(3).Contains("brut"), args.Skip(3).Contains("plafond"));
 
         // Mesure du temps GPU de la passe CGA : RetroFilter --bench "<partie du titre>"
         if (args.Length == 2 && args[0] == "--bench")
@@ -137,7 +137,7 @@ static class Program
     }
 
     /// <summary>Pendant 5 secondes, filtre chaque image capturée et mesure le débit et le temps de traitement.</summary>
-    static int Fps(string titlePart, int priority, bool rawOnly)
+    static int Fps(string titlePart, int priority, bool rawOnly, bool capped)
     {
         var window = WindowList.GetCapturableWindows()
             .FirstOrDefault(w => w.Title.Contains(titlePart, StringComparison.OrdinalIgnoreCase));
@@ -153,7 +153,7 @@ static class Program
         int frames = 0;
         double busyMs = 0, worstMs = 0;
         var clock = System.Diagnostics.Stopwatch.StartNew();
-        using (var capture = new WindowCapture(device, window.Handle))
+        using (var capture = new WindowCapture(device, window.Handle, uncapped: !capped))
         {
             capture.FrameArrived += (texture, width, height) =>
             {
@@ -169,6 +169,7 @@ static class Program
                 worstMs = Math.Max(worstMs, ms);
                 frames++;
             };
+            Console.WriteLine(capture.Uncapped ? "limite de capture levée" : "limite de capture de Windows active");
             Thread.Sleep(5000);
         }
         double seconds = clock.Elapsed.TotalSeconds;

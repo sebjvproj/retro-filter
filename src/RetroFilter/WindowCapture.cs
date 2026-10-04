@@ -17,6 +17,7 @@ namespace RetroFilter;
 sealed class WindowCapture : IDisposable
 {
     const DirectXPixelFormat PixelFormat = DirectXPixelFormat.B8G8R8A8UIntNormalized;
+    const int BufferCount = 3;
 
     readonly IDirect3DDevice _winrtDevice;
     readonly GraphicsCaptureItem _item;
@@ -24,25 +25,39 @@ sealed class WindowCapture : IDisposable
     readonly GraphicsCaptureSession _session;
     SizeInt32 _lastSize;
 
+    /// <summary>La limite d'images par seconde de Windows a bien été levée.</summary>
+    public bool Uncapped { get; }
+
     /// <summary>Texture de la capture et taille utile de son contenu.</summary>
     public event Action<ID3D11Texture2D, int, int>? FrameArrived;
 
     /// <summary>La fenêtre capturée a été fermée.</summary>
     public event Action? Closed;
 
-    public WindowCapture(ID3D11Device device, IntPtr hwnd)
+    /// <param name="uncapped">Lève la limite d'images par seconde de Windows (Windows 11 24H2 et plus).</param>
+    public WindowCapture(ID3D11Device device, IntPtr hwnd, bool uncapped = true)
     {
         _winrtDevice = CreateWinRTDevice(device);
         _item = CreateItemForWindow(hwnd);
         _item.Closed += (_, _) => Closed?.Invoke();
 
         _lastSize = _item.Size;
-        _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(_winrtDevice, PixelFormat, 2, _lastSize);
+        _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(_winrtDevice, PixelFormat, BufferCount, _lastSize);
         _framePool.FrameArrived += OnFrameArrived;
 
         _session = _framePool.CreateCaptureSession(_item);
         if (ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName, nameof(GraphicsCaptureSession.IsCursorCaptureEnabled)))
             _session.IsCursorCaptureEnabled = false;
+        if (uncapped && ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName, nameof(GraphicsCaptureSession.MinUpdateInterval)))
+        {
+            // Par défaut, Windows espace les images d'environ 1/60 s : on autorise jusqu'au rythme du jeu.
+            try
+            {
+                _session.MinUpdateInterval = TimeSpan.FromMilliseconds(1);
+                Uncapped = true;
+            }
+            catch { }
+        }
         if (ApiInformation.IsPropertyPresent(typeof(GraphicsCaptureSession).FullName, nameof(GraphicsCaptureSession.IsBorderRequired)))
         {
             // Retire le cadre jaune autour du jeu (Windows 11). Sans effet si Windows refuse.
@@ -66,7 +81,7 @@ sealed class WindowCapture : IDisposable
         if (size.Width != _lastSize.Width || size.Height != _lastSize.Height)
         {
             _lastSize = size;
-            sender.Recreate(_winrtDevice, PixelFormat, 2, size);
+            sender.Recreate(_winrtDevice, PixelFormat, BufferCount, size);
         }
     }
 
