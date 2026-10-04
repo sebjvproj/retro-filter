@@ -5,13 +5,14 @@ static class Program
     [STAThread]
     static int Main(string[] args)
     {
-        // Mode test sans interface : RetroFilter --snapshot "<partie du titre>" <dossier> [taille de pixel]
-        if (args.Length is 3 or 4 && args[0] == "--snapshot")
-            return Snapshot(args[1], args[2], args.Length == 4 ? int.Parse(args[3]) : 1);
+        // Mode test sans interface : RetroFilter --snapshot "<partie du titre>" <dossier> [taille de pixel] [rapide]
+        if (args.Length is 3 or 4 or 5 && args[0] == "--snapshot")
+            return Snapshot(args[1], args[2], args.Length >= 4 ? int.Parse(args[3]) : 1, args.Length == 5 && args[4] == "rapide");
 
         // Mesure du débit de capture avec filtre : RetroFilter --fps "<partie du titre>" <priorité 0 normale, 1 haute, 2 temps réel>
-        if (args.Length == 3 && args[0] == "--fps")
-            return Fps(args[1], int.Parse(args[2]));
+        // Ajouter « brut » à la fin pour mesurer la capture seule, sans filtre.
+        if (args.Length is 3 or 4 && args[0] == "--fps")
+            return Fps(args[1], int.Parse(args[2]), args.Length == 4 && args[3] == "brut");
 
         // Mesure du temps GPU de la passe CGA : RetroFilter --bench "<partie du titre>"
         if (args.Length == 2 && args[0] == "--bench")
@@ -26,7 +27,7 @@ static class Program
     /// Capture une image de la fenêtre et enregistre dans le dossier : source.png (brute),
     /// cga-small.png (sortie de la passe CGA) et cga.png (agrandie à la taille de la capture).
     /// </summary>
-    static int Snapshot(string titlePart, string directory, int pixelSize)
+    static int Snapshot(string titlePart, string directory, int pixelSize, bool fastSampling)
     {
         var window = WindowList.GetCapturableWindows()
             .FirstOrDefault(w => w.Title.Contains(titlePart, StringComparison.OrdinalIgnoreCase));
@@ -39,6 +40,7 @@ static class Program
         Directory.CreateDirectory(directory);
         using var device = GpuDevice.Create();
         using var filter = new CgaFilter(device);
+        filter.FastSampling = fastSampling;
         filter.Settings.PixelSize = pixelSize;
         using var capture = new WindowCapture(device, window.Handle);
         using var done = new ManualResetEventSlim();
@@ -108,24 +110,34 @@ static class Program
         using (var adapter = dxgiDevice.GetAdapter())
             Console.WriteLine($"GPU : {adapter.Description.Description}");
         Console.WriteLine($"Capture {filter.SourceWidth}x{filter.SourceHeight}");
+
         foreach (int pixelSize in new[] { 1, 2, 3, 4, 0 })
         {
             filter.Settings.PixelSize = pixelSize;
-            filter.Apply();
-            filter.WaitForGpu();
-            const int runs = 100;
-            var timer = System.Diagnostics.Stopwatch.StartNew();
-            for (int i = 0; i < runs; i++) filter.Apply();
-            filter.WaitForGpu();
-            double ms = timer.Elapsed.TotalMilliseconds / runs;
             string name = pixelSize == 0 ? "historique 320x200" : $"pixel {pixelSize}";
-            Console.WriteLine($"{name,-20} {ms,7:F2} ms par image");
+            Console.WriteLine($"{name,-24} {Measure(filter),7:F2} ms par image");
         }
+
+        filter.Settings.PixelSize = 1;
+        filter.FastSampling = true;
+        Console.WriteLine($"{"pixel 1, 2x2 lectures",-24} {Measure(filter),7:F2} ms par image");
         return 0;
     }
 
+    /// <summary>Temps moyen de la passe CGA, en millisecondes.</summary>
+    static double Measure(CgaFilter filter)
+    {
+        filter.Apply();
+        filter.WaitForGpu();
+        const int runs = 100;
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 0; i < runs; i++) filter.Apply();
+        filter.WaitForGpu();
+        return timer.Elapsed.TotalMilliseconds / runs;
+    }
+
     /// <summary>Pendant 5 secondes, filtre chaque image capturée et mesure le débit et le temps de traitement.</summary>
-    static int Fps(string titlePart, int priority)
+    static int Fps(string titlePart, int priority, bool rawOnly)
     {
         var window = WindowList.GetCapturableWindows()
             .FirstOrDefault(w => w.Title.Contains(titlePart, StringComparison.OrdinalIgnoreCase));
@@ -146,9 +158,12 @@ static class Program
             capture.FrameArrived += (texture, width, height) =>
             {
                 var t = System.Diagnostics.Stopwatch.StartNew();
-                filter.SetSource(texture, width, height);
-                filter.Apply();
-                filter.WaitForGpu();
+                if (!rawOnly)
+                {
+                    filter.SetSource(texture, width, height);
+                    filter.Apply();
+                    filter.WaitForGpu();
+                }
                 double ms = t.Elapsed.TotalMilliseconds;
                 busyMs += ms;
                 worstMs = Math.Max(worstMs, ms);

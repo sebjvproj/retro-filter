@@ -28,6 +28,11 @@ cbuffer Params : register(b0)
     float Padding;
 };
 
+// Lectures par côté de gros pixel pour la moyenne (8 dans la v2 d'origine).
+#ifndef SAMPLES
+#define SAMPLES 8
+#endif
+
 Texture2D Source : register(t0);
 SamplerState LinearSampler : register(s0);
 
@@ -118,19 +123,19 @@ float4 PSMain(float4 pos : SV_Position, float2 uv : TEXCOORD0) : SV_Target
 {
     float2 cell = floor(pos.xy);
 
-    // Moyenne 8x8 dans la cellule, en lumière linéaire
+    // Moyenne SAMPLES x SAMPLES dans la cellule, en lumière linéaire
     float3 c = 0.0;
     [loop]
-    for (int sy = 0; sy < 8; sy++)
+    for (int sy = 0; sy < SAMPLES; sy++)
     {
         [unroll]
-        for (int sx = 0; sx < 8; sx++)
+        for (int sx = 0; sx < SAMPLES; sx++)
         {
-            float2 suv = (cell + (float2(sx, sy) + 0.5) * 0.125) * OutputSize.zw;
+            float2 suv = (cell + (float2(sx, sy) + 0.5) * (1.0 / SAMPLES)) * OutputSize.zw;
             c += toLinear(Source.SampleLevel(LinearSampler, suv, 0).rgb);
         }
     }
-    c = toSrgb(c * (1.0 / 64.0));
+    c = toSrgb(c * (1.0 / (SAMPLES * SAMPLES)));
 
     c = (c - 0.5) * Contrast + 0.5 + Brightness;
     c = lerp(dot(c, float3(0.299, 0.587, 0.114)).xxx, c, Saturation);

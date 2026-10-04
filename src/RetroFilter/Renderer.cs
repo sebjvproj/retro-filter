@@ -98,6 +98,21 @@ sealed class Renderer : IDisposable
         }
     }
 
+    /// <summary>Moyenne rapide (2x2 lectures) en mode pixel 1.</summary>
+    public bool FastSampling
+    {
+        get { lock (_sync) return _filter.FastSampling; }
+        set
+        {
+            lock (_sync)
+            {
+                _filter.FastSampling = value;
+                _filter.Apply();
+                Draw();
+            }
+        }
+    }
+
     /// <summary>Taille des gros pixels ; 0 = résolution fixe 320x200.</summary>
     public int PixelSize
     {

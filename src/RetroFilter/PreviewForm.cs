@@ -87,6 +87,11 @@ sealed class PreviewForm : Form
                 _renderer.PixelSize = Modes[_mode].PixelSize;
                 UpdateTitle();
                 break;
+            case Keys.F6:
+                if (_renderer == null) break;
+                _renderer.FastSampling = !_renderer.FastSampling;
+                UpdateTitle();
+                break;
             case Keys.F7:
                 if (_device == null) break;
                 _priority = (_priority + 1) % GpuPriority.Levels.Length;
@@ -117,7 +122,9 @@ sealed class PreviewForm : Form
     void UpdateTitle()
     {
         string filter = _renderer?.FilterEnabled == false ? "filtre coupé" : Modes[_mode].Name;
-        Text = $"Aperçu [{filter}]   {_stats}   GPU {GpuPriority.Levels[_priority].Name}   F7 priorité, F8 mode, F9 filtre, F12 PNG"
+        if (_renderer?.FilterEnabled == true && Modes[_mode].PixelSize == 1)
+            filter += _renderer.FastSampling ? ", 2x2 lectures" : ", 8x8 lectures";
+        Text = $"Aperçu [{filter}]   {_stats}   GPU {GpuPriority.Levels[_priority].Name}   F6 lectures, F7 priorité, F8 mode, F9 filtre, F12 PNG"
             + (_status == null ? "" : $"   ({_status})");
     }
 

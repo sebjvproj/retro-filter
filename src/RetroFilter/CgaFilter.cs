@@ -17,6 +17,7 @@ sealed class CgaFilter : IDisposable
     readonly ID3D11DeviceContext _context;
     readonly ID3D11VertexShader _fullscreen;
     readonly ID3D11PixelShader _cga;
+    readonly ID3D11PixelShader _cgaFast;
     readonly ID3D11PixelShader _copy;
     readonly ID3D11SamplerState _linear;
     readonly ID3D11SamplerState _point;
@@ -33,6 +34,12 @@ sealed class CgaFilter : IDisposable
 
     public CgaSettings Settings { get; } = new();
     public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// En mode pixel 1 : moyenne sur 2x2 lectures au lieu de 8x8. Deux fois moins de temps GPU,
+    /// 0,07 % de pixels différents mesurés sur une image de No Man's Sky.
+    /// </summary>
+    public bool FastSampling { get; set; }
     public bool HasSource => _source != null;
     public int SourceWidth { get; private set; }
     public int SourceHeight { get; private set; }
@@ -42,17 +49,18 @@ sealed class CgaFilter : IDisposable
         _device = device;
         _context = device.ImmediateContext;
         _fullscreen = device.CreateVertexShader(Compile("fullscreen.hlsl", "VSMain", "vs_5_0"));
-        _cga = device.CreatePixelShader(Compile("cga-v2.hlsl", "PSMain", "ps_5_0"));
+        _cga = device.CreatePixelShader(Compile("cga-v2.hlsl", "PSMain", "ps_5_0", "#define SAMPLES 8\n"));
+        _cgaFast = device.CreatePixelShader(Compile("cga-v2.hlsl", "PSMain", "ps_5_0", "#define SAMPLES 2\n"));
         _copy = device.CreatePixelShader(Compile("copy.hlsl", "PSMain", "ps_5_0"));
         _linear = device.CreateSamplerState(SamplerDescription.LinearClamp);
         _point = device.CreateSamplerState(SamplerDescription.PointClamp);
         _params = device.CreateBuffer(new BufferDescription(48, BindFlags.ConstantBuffer));
     }
 
-    static byte[] Compile(string file, string entryPoint, string profile)
+    static byte[] Compile(string file, string entryPoint, string profile, string defines = "")
     {
         string path = Path.Combine(AppContext.BaseDirectory, "Shaders", file);
-        return Compiler.Compile(File.ReadAllText(path), entryPoint, path, profile).ToArray();
+        return Compiler.Compile(defines + File.ReadAllText(path), entryPoint, path, profile).ToArray();
     }
 
     /// <summary>Copie l'image capturée (seule la zone utile, en haut à gauche).</summary>
@@ -97,7 +105,7 @@ sealed class CgaFilter : IDisposable
         _context.ClearState();
         _context.OMSetRenderTargets(_smallTarget!);
         _context.RSSetViewport(new Viewport(0, 0, w, h));
-        _context.PSSetShader(_cga);
+        _context.PSSetShader(FastSampling && Settings.PixelSize == 1 ? _cgaFast : _cga);
         _context.PSSetShaderResource(0, _sourceView);
         _context.PSSetSampler(0, _linear);
         _context.PSSetConstantBuffer(0, _params);
@@ -184,6 +192,7 @@ sealed class CgaFilter : IDisposable
         _point.Dispose();
         _linear.Dispose();
         _copy.Dispose();
+        _cgaFast.Dispose();
         _cga.Dispose();
         _fullscreen.Dispose();
     }
