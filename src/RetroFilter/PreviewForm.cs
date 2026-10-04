@@ -45,6 +45,7 @@ sealed class PreviewForm : Form
         base.OnHandleCreated(e);
 
         _device = GpuDevice.Create();
+        GpuPriority.Raise(_device);
         _renderer = new Renderer(_device, Handle, ClientSize.Width, ClientSize.Height);
         _capture = new WindowCapture(_device, _target.Handle);
         _capture.FrameArrived += _renderer.SubmitFrame;
