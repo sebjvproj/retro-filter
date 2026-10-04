@@ -3,11 +3,15 @@ using System.Runtime.InteropServices;
 
 namespace RetroFilter;
 
-/// <summary>Réglages du filtre CGA v2. Valeurs par défaut = preset cga-moderne.</summary>
+/// <summary>Réglages du filtre CGA v2. Valeurs par défaut = preset cga-v2 (320x200).</summary>
 sealed class CgaSettings
 {
+    /// <summary>Résolution virtuelle fixe, utilisée quand PixelSize vaut 0.</summary>
     public int Width { get; set; } = 320;
     public int Height { get; set; } = 200;
+
+    /// <summary>Taille d'un gros pixel en pixels de la capture ; 0 = résolution fixe Width x Height.</summary>
+    public int PixelSize { get; set; } = 0;
     public int Palette { get; set; } = 0;
     public bool MatchLuminance { get; set; } = false;
     public int DitherLevels { get; set; } = 16;
@@ -16,9 +20,16 @@ sealed class CgaSettings
     public float Contrast { get; set; } = 1.0f;
     public float Saturation { get; set; } = 1.0f;
 
-    internal CgaParams ToParams() => new()
+    /// <summary>Résolution de la passe CGA pour une capture de cette taille.</summary>
+    public (int Width, int Height) ResolutionFor(int sourceWidth, int sourceHeight) =>
+        PixelSize <= 0
+            ? (Width, Height)
+            : (Math.Max(1, (int)Math.Round((double)sourceWidth / PixelSize)),
+               Math.Max(1, (int)Math.Round((double)sourceHeight / PixelSize)));
+
+    internal CgaParams ToParams(int width, int height) => new()
     {
-        OutputSize = new Vector4(Width, Height, 1.0f / Width, 1.0f / Height),
+        OutputSize = new Vector4(width, height, 1.0f / width, 1.0f / height),
         Palette = Palette,
         MatchMode = MatchLuminance ? 1 : 0,
         DitherLevels = DitherLevels,

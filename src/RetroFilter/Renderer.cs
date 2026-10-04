@@ -78,15 +78,30 @@ sealed class Renderer : IDisposable
         }
     }
 
+    /// <summary>Taille des gros pixels ; 0 = résolution fixe 320x200.</summary>
+    public int PixelSize
+    {
+        get { lock (_sync) return _filter.Settings.PixelSize; }
+        set
+        {
+            lock (_sync)
+            {
+                _filter.Settings.PixelSize = value;
+                _filter.Apply();
+                Draw();
+            }
+        }
+    }
+
     /// <summary>Enregistre la capture brute et l'image filtrée ; renvoie le chemin de l'image filtrée.</summary>
-    public string? SaveSnapshot(string directory)
+    public string? SaveSnapshot(string directory, string label)
     {
         lock (_sync)
         {
             if (!_filter.HasSource) return null;
             Directory.CreateDirectory(directory);
             string stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-            string output = Path.Combine(directory, $"{stamp}_cga.png");
+            string output = Path.Combine(directory, $"{stamp}_{label}.png");
             _filter.SaveSource(Path.Combine(directory, $"{stamp}_source.png"));
             _filter.SaveOutput(output);
             return output;
@@ -118,8 +133,10 @@ sealed class Renderer : IDisposable
 
         if (_filter.HasSource)
         {
-            // Bandes noires pour garder les proportions de l'image capturée.
-            float scale = Math.Min((float)_width / _filter.SourceWidth, (float)_height / _filter.SourceHeight);
+            // Échelle entière (1:1 au minimum, bords rognés si la fenêtre est trop petite) :
+            // une réduction détruirait le tramage fin. Image centrée, bandes noires autour.
+            float fit = Math.Min((float)_width / _filter.SourceWidth, (float)_height / _filter.SourceHeight);
+            float scale = Math.Max(1, MathF.Floor(fit));
             float w = _filter.SourceWidth * scale;
             float h = _filter.SourceHeight * scale;
             _filter.DrawOutput(_renderTarget!, new Viewport((_width - w) / 2, (_height - h) / 2, w, h));

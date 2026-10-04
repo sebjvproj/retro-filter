@@ -80,7 +80,7 @@ sealed class CgaFilter : IDisposable
     {
         if (!Enabled || _sourceView == null) return;
 
-        int w = Settings.Width, h = Settings.Height;
+        var (w, h) = Settings.ResolutionFor(SourceWidth, SourceHeight);
         if (_small == null || _small.Description.Width != w || _small.Description.Height != h)
         {
             _smallView?.Dispose();
@@ -91,7 +91,7 @@ sealed class CgaFilter : IDisposable
             _smallView = _device.CreateShaderResourceView(_small);
         }
 
-        var parameters = Settings.ToParams();
+        var parameters = Settings.ToParams(w, h);
         _context.UpdateSubresource(in parameters, _params);
 
         _context.ClearState();
@@ -137,7 +137,8 @@ sealed class CgaFilter : IDisposable
     public void SaveSmall(string path)
     {
         if (_small == null) return;
-        TextureSaver.SavePng(_device, _small, Settings.Width, Settings.Height, path);
+        var desc = _small.Description;
+        TextureSaver.SavePng(_device, _small, (int)desc.Width, (int)desc.Height, path);
     }
 
     /// <summary>Enregistre l'image affichée, agrandie à la taille de la capture.</summary>

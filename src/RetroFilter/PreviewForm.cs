@@ -9,7 +9,18 @@ sealed class PreviewForm : Form
     public static readonly string SnapshotDirectory =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "retro-filter");
 
+    // Modes proposés par F8 : nom affiché, nom de fichier, taille des gros pixels (0 = 320x200 fixe).
+    static readonly (string Name, string File, int PixelSize)[] Modes =
+    [
+        ("CGA historique 320x200", "cga-historique", 0),
+        ("pixel 1", "cga-p1", 1),
+        ("pixel 2", "cga-p2", 2),
+        ("pixel 3", "cga-p3", 3),
+        ("pixel 4", "cga-p4", 4),
+    ];
+
     readonly WindowInfo _target;
+    int _mode;
     ID3D11Device? _device;
     Renderer? _renderer;
     WindowCapture? _capture;
@@ -57,6 +68,12 @@ sealed class PreviewForm : Form
                 _renderer.FilterEnabled = !_renderer.FilterEnabled;
                 UpdateTitle();
                 break;
+            case Keys.F8:
+                if (_renderer == null) break;
+                _mode = (_mode + 1) % Modes.Length;
+                _renderer.PixelSize = Modes[_mode].PixelSize;
+                UpdateTitle();
+                break;
             case Keys.F12:
                 SaveSnapshot();
                 break;
@@ -67,7 +84,7 @@ sealed class PreviewForm : Form
     {
         try
         {
-            string? path = _renderer?.SaveSnapshot(SnapshotDirectory);
+            string? path = _renderer?.SaveSnapshot(SnapshotDirectory, Modes[_mode].File);
             UpdateTitle(path == null ? "aucune image capturée pour l'instant" : $"enregistré : {Path.GetFileName(path)}");
         }
         catch (Exception ex)
@@ -78,8 +95,8 @@ sealed class PreviewForm : Form
 
     void UpdateTitle(string? status = null)
     {
-        string filter = _renderer?.FilterEnabled == false ? "filtre coupé" : "CGA";
-        Text = $"Aperçu : {_target.Title}   [{filter}]   F9 filtre, F12 PNG" + (status == null ? "" : $"   ({status})");
+        string filter = _renderer?.FilterEnabled == false ? "filtre coupé" : Modes[_mode].Name;
+        Text = $"Aperçu : {_target.Title}   [{filter}]   F8 mode, F9 filtre, F12 PNG" + (status == null ? "" : $"   ({status})");
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
