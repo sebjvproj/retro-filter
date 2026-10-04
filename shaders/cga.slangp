@@ -1,0 +1,16 @@
+shaders = 3
+
+shader0 = cga-prepare.slang
+filter_linear0 = true
+scale_type0 = absolute
+scale_x0 = 320
+scale_y0 = 200
+
+shader1 = cga.slang
+filter_linear1 = false
+scale_type1 = source
+scale1 = 1.0
+
+shader2 = cga-output.slang
+filter_linear2 = false
+scale_type2 = viewport
