@@ -12,15 +12,18 @@ sealed class PreviewForm : Form
     // Modes proposés par F8 : nom affiché, nom de fichier, taille des gros pixels (0 = 320x200 fixe).
     static readonly (string Name, string File, int PixelSize)[] Modes =
     [
-        ("CGA historique 320x200", "cga-historique", 0),
-        ("pixel 1", "cga-p1", 1),
+        ("CGA moderne", "cga-moderne", 1),
         ("pixel 2", "cga-p2", 2),
         ("pixel 3", "cga-p3", 3),
         ("pixel 4", "cga-p4", 4),
+        ("CGA historique 320x200", "cga-historique", 0),
     ];
 
     readonly WindowInfo _target;
+    readonly System.Windows.Forms.Timer _fpsTimer = new() { Interval = 1000 };
     int _mode;
+    int _fps;
+    string? _status;
     ID3D11Device? _device;
     Renderer? _renderer;
     WindowCapture? _capture;
@@ -46,6 +49,13 @@ sealed class PreviewForm : Form
         _capture = new WindowCapture(_device, _target.Handle);
         _capture.FrameArrived += _renderer.SubmitFrame;
         _capture.Closed += () => BeginInvoke(Close);
+
+        _fpsTimer.Tick += (_, _) =>
+        {
+            _fps = _renderer.TakeFrameCount();
+            UpdateTitle();
+        };
+        _fpsTimer.Start();
     }
 
     protected override void OnResize(EventArgs e)
@@ -85,22 +95,25 @@ sealed class PreviewForm : Form
         try
         {
             string? path = _renderer?.SaveSnapshot(SnapshotDirectory, Modes[_mode].File);
-            UpdateTitle(path == null ? "aucune image capturée pour l'instant" : $"enregistré : {Path.GetFileName(path)}");
+            _status = path == null ? "aucune image capturée pour l'instant" : $"enregistré : {Path.GetFileName(path)}";
+            UpdateTitle();
         }
         catch (Exception ex)
         {
-            UpdateTitle($"échec de l'enregistrement : {ex.Message}");
+            _status = $"échec de l'enregistrement : {ex.Message}";
+            UpdateTitle();
         }
     }
 
-    void UpdateTitle(string? status = null)
+    void UpdateTitle()
     {
         string filter = _renderer?.FilterEnabled == false ? "filtre coupé" : Modes[_mode].Name;
-        Text = $"Aperçu : {_target.Title}   [{filter}]   F8 mode, F9 filtre, F12 PNG" + (status == null ? "" : $"   ({status})");
+        Text = $"Aperçu : {_target.Title}   [{filter}]   {_fps} i/s   F8 mode, F9 filtre, F12 PNG" + (_status == null ? "" : $"   ({_status})");
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
+        _fpsTimer.Dispose();
         _capture?.Dispose();
         _renderer?.Dispose();
         _device?.Dispose();

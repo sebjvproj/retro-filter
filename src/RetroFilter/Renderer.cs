@@ -18,6 +18,10 @@ sealed class Renderer : IDisposable
 
     ID3D11RenderTargetView? _renderTarget;
     int _width, _height;
+    int _framesSinceLastRead;
+
+    /// <summary>Nombre d'images capturées et affichées depuis le dernier appel (remis à zéro).</summary>
+    public int TakeFrameCount() => Interlocked.Exchange(ref _framesSinceLastRead, 0);
 
     public Renderer(ID3D11Device device, IntPtr hwnd, int width, int height)
     {
@@ -61,6 +65,7 @@ sealed class Renderer : IDisposable
             _filter.SetSource(frame, contentWidth, contentHeight);
             _filter.Apply();
             Draw();
+            Interlocked.Increment(ref _framesSinceLastRead);
         }
     }
 

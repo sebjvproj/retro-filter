@@ -126,6 +126,14 @@ sealed class CgaFilter : IDisposable
         _context.Draw(3, 0);
     }
 
+    /// <summary>Attend que le GPU ait fini tout le travail envoyé (pour les mesures).</summary>
+    public void WaitForGpu()
+    {
+        using var query = _device.CreateQuery(new QueryDescription(QueryType.Event));
+        _context.End(query);
+        while (!_context.IsDataAvailable(query)) Thread.SpinWait(100);
+    }
+
     /// <summary>Enregistre la capture brute.</summary>
     public void SaveSource(string path)
     {

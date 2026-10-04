@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace RetroFilter;
 
-/// <summary>Réglages du filtre CGA v2. Valeurs par défaut = preset cga-v2 (320x200).</summary>
+/// <summary>Réglages du filtre CGA v2. Valeurs par défaut = « CGA moderne » (v2 tramée pixel par pixel).</summary>
 sealed class CgaSettings
 {
     /// <summary>Résolution virtuelle fixe, utilisée quand PixelSize vaut 0.</summary>
@@ -11,7 +11,7 @@ sealed class CgaSettings
     public int Height { get; set; } = 200;
 
     /// <summary>Taille d'un gros pixel en pixels de la capture ; 0 = résolution fixe Width x Height.</summary>
-    public int PixelSize { get; set; } = 0;
+    public int PixelSize { get; set; } = 1;
     public int Palette { get; set; } = 0;
     public bool MatchLuminance { get; set; } = false;
     public int DitherLevels { get; set; } = 16;
