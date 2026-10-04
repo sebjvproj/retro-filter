@@ -5,19 +5,7 @@ namespace RetroFilter;
 /// <summary>Fenêtre de test : affiche la capture filtrée de la fenêtre choisie.</summary>
 sealed class PreviewForm : Form
 {
-    /// <summary>Dossier des images enregistrées par F12.</summary>
-    public static readonly string SnapshotDirectory =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "retro-filter");
-
-    // Modes proposés par F8 : nom affiché, nom de fichier, taille des gros pixels (0 = 320x200 fixe).
-    static readonly (string Name, string File, int PixelSize)[] Modes =
-    [
-        ("CGA moderne", "cga-moderne", 1),
-        ("pixel 2", "cga-p2", 2),
-        ("pixel 3", "cga-p3", 3),
-        ("pixel 4", "cga-p4", 4),
-        ("CGA historique 320x200", "cga-historique", 0),
-    ];
+    static readonly (string Name, string File, int PixelSize)[] Modes = FilterModes.All;
 
     readonly WindowInfo _target;
     readonly System.Windows.Forms.Timer _fpsTimer = new() { Interval = 1000 };
@@ -108,7 +96,7 @@ sealed class PreviewForm : Form
     {
         try
         {
-            string? path = _renderer?.SaveSnapshot(SnapshotDirectory, Modes[_mode].File);
+            string? path = _renderer?.SaveSnapshot(FilterModes.SnapshotDirectory, Modes[_mode].File);
             _status = path == null ? "aucune image capturée pour l'instant" : $"enregistré : {Path.GetFileName(path)}";
             UpdateTitle();
         }

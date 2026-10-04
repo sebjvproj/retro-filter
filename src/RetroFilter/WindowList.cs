@@ -59,6 +59,61 @@ static class WindowList
 
     public static bool IsAlive(IntPtr hwnd) => IsWindow(hwnd);
 
+    public static bool IsMinimized(IntPtr hwnd) => IsIconic(hwnd);
+
+    public static IntPtr Foreground => GetForegroundWindow();
+
+    /// <summary>Zone d'affichage (sans barre de titre ni bords) en coordonnées écran.</summary>
+    public static Rectangle GetClientScreenRect(IntPtr hwnd)
+    {
+        GetClientRect(hwnd, out RECT client);
+        var origin = new POINT();
+        ClientToScreen(hwnd, ref origin);
+        return new Rectangle(origin.X, origin.Y, client.Right - client.Left, client.Bottom - client.Top);
+    }
+
+    /// <summary>
+    /// Zone d'affichage de la fenêtre, dans l'image capturée. La capture couvre le cadre
+    /// visible de la fenêtre (DWMWA_EXTENDED_FRAME_BOUNDS), barre de titre comprise.
+    /// </summary>
+    public static Rectangle GetClientRectInCapture(IntPtr hwnd)
+    {
+        var client = GetClientScreenRect(hwnd);
+        if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out RECT frame, Marshal.SizeOf<RECT>()) != 0)
+            GetWindowRect(hwnd, out frame);
+        return new Rectangle(client.X - frame.Left, client.Y - frame.Top, client.Width, client.Height);
+    }
+
+    /// <summary>Résumé de la géométrie de la fenêtre, pour les tests.</summary>
+    public static string DescribeGeometry(IntPtr hwnd)
+    {
+        GetWindowRect(hwnd, out RECT window);
+        DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out RECT frame, Marshal.SizeOf<RECT>());
+        return $"fenêtre {window}, cadre visible {frame}, zone d'affichage {GetClientScreenRect(hwnd)}, dans la capture {GetClientRectInCapture(hwnd)}";
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct RECT
+    {
+        public int Left, Top, Right, Bottom;
+        public override string ToString() => $"({Left},{Top})-({Right},{Bottom}) {Right - Left}x{Bottom - Top}";
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct POINT
+    {
+        public int X, Y;
+    }
+
+    const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+
+    [DllImport("user32.dll")] static extern bool IsIconic(IntPtr hwnd);
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr hwnd, out RECT rect);
+    [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+    [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr hwnd, ref POINT point);
+    [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out RECT value, int size);
+
     delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
 
     const int GWL_EXSTYLE = -20;

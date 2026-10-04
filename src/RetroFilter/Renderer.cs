@@ -68,13 +68,31 @@ sealed class Renderer : IDisposable
         _renderTarget = _device.CreateRenderTargetView(backBuffer);
     }
 
+    Rectangle? _crop;
+    bool _paused;
+
+    /// <summary>Partie de l'image capturée à afficher (null = tout).</summary>
+    public Rectangle? Crop
+    {
+        get { lock (_sync) return _crop; }
+        set { lock (_sync) _crop = value; }
+    }
+
+    /// <summary>Ignore les images capturées (affichage caché : inutile de calculer).</summary>
+    public bool Paused
+    {
+        get { lock (_sync) return _paused; }
+        set { lock (_sync) _paused = value; }
+    }
+
     /// <summary>Reçoit une image capturée (thread de capture).</summary>
     public void SubmitFrame(ID3D11Texture2D frame, int contentWidth, int contentHeight)
     {
         lock (_sync)
         {
+            if (_paused) return;
             long start = System.Diagnostics.Stopwatch.GetTimestamp();
-            _filter.SetSource(frame, contentWidth, contentHeight);
+            _filter.SetSource(frame, contentWidth, contentHeight, _crop);
             _filter.Apply();
             Draw();
             double ms = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
@@ -177,7 +195,9 @@ sealed class Renderer : IDisposable
             _filter.DrawOutput(_renderTarget!, new Viewport((_width - w) / 2, (_height - h) / 2, w, h));
         }
 
-        _swapChain.Present(1, PresentFlags.None);
+        // Sans attente de synchronisation : le compositeur de Windows affiche la dernière image
+        // au prochain rafraîchissement, et le thread de capture n'est jamais bloqué.
+        _swapChain.Present(0, PresentFlags.None);
     }
 
     public void Dispose()

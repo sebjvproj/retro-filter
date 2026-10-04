@@ -63,12 +63,16 @@ sealed class CgaFilter : IDisposable
         return Compiler.Compile(defines + File.ReadAllText(path), entryPoint, path, profile).ToArray();
     }
 
-    /// <summary>Copie l'image capturée (seule la zone utile, en haut à gauche).</summary>
-    public void SetSource(ID3D11Texture2D frame, int contentWidth, int contentHeight)
+    /// <summary>
+    /// Copie l'image capturée : la zone utile (en haut à gauche de la texture),
+    /// ou seulement la partie <paramref name="crop"/> de cette zone (sans barre de titre, par exemple).
+    /// </summary>
+    public void SetSource(ID3D11Texture2D frame, int contentWidth, int contentHeight, Rectangle? crop = null)
     {
         var desc = frame.Description;
-        int w = Math.Min(contentWidth, (int)desc.Width);
-        int h = Math.Min(contentHeight, (int)desc.Height);
+        var region = new Rectangle(0, 0, Math.Min(contentWidth, (int)desc.Width), Math.Min(contentHeight, (int)desc.Height));
+        if (crop is Rectangle c) region.Intersect(c);
+        int w = region.Width, h = region.Height;
         if (w <= 0 || h <= 0) return;
 
         if (_source == null || w != SourceWidth || h != SourceHeight)
@@ -80,7 +84,7 @@ sealed class CgaFilter : IDisposable
             SourceWidth = w;
             SourceHeight = h;
         }
-        _context.CopySubresourceRegion(_source, 0, 0, 0, 0, frame, 0, new Box(0, 0, 0, w, h, 1));
+        _context.CopySubresourceRegion(_source, 0, 0, 0, 0, frame, 0, new Box(region.Left, region.Top, 0, region.Right, region.Bottom, 1));
     }
 
     /// <summary>Passe CGA : calcule l'image basse résolution.</summary>

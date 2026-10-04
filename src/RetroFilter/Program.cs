@@ -14,6 +14,10 @@ static class Program
         if (args.Length >= 3 && args[0] == "--fps")
             return Fps(args[1], int.Parse(args[2]), args.Skip(3).Contains("brut"), args.Skip(3).Contains("plafond"));
 
+        // Test de l'overlay : le pose 3 s sur la fenêtre, puis enregistre ce qui est à l'écran à cet endroit.
+        if (args.Length == 3 && args[0] == "--overlay")
+            return OverlayTest(args[1], args[2]);
+
         // Mesure du temps GPU de la passe CGA : RetroFilter --bench "<partie du titre>"
         if (args.Length == 2 && args[0] == "--bench")
             return Bench(args[1]);
@@ -56,6 +60,7 @@ static class Program
                 filter.SaveSmall(Path.Combine(directory, "cga-small.png"));
                 filter.SaveOutput(Path.Combine(directory, "cga.png"));
                 Console.WriteLine($"{window.Title} : {width}x{height} -> {directory}");
+                Console.WriteLine(WindowList.DescribeGeometry(window.Handle));
             }
             catch (Exception ex)
             {
@@ -176,4 +181,72 @@ static class Program
         Console.WriteLine($"{frames / seconds:F1} images/s, traitement moyen {busyMs / Math.Max(frames, 1):F1} ms, pire {worstMs:F1} ms");
         return 0;
     }
+
+    /// <summary>
+    /// Pose l'overlay sur la fenêtre (visible même sans le focus), attend 3 s puis enregistre
+    /// dans le dossier : ecran.png (ce que montre l'écran à l'emplacement du jeu) et overlay.png
+    /// (l'image que l'overlay croit afficher).
+    /// </summary>
+    static int OverlayTest(string titlePart, string directory)
+    {
+        var window = WindowList.GetCapturableWindows()
+            .FirstOrDefault(w => w.Title.Contains(titlePart, StringComparison.OrdinalIgnoreCase));
+        if (window == null)
+        {
+            Console.Error.WriteLine($"Aucune fenêtre ne contient « {titlePart} ».");
+            return 2;
+        }
+
+        Directory.CreateDirectory(directory);
+        ApplicationConfiguration.Initialize();
+        var overlay = new OverlayForm(window.Handle, 0) { AlwaysVisible = true };
+        var timer = new System.Windows.Forms.Timer { Interval = 3000 };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            var area = overlay.Bounds;
+            using (var screen = ScreenGrab(area))
+                screen.Save(Path.Combine(directory, "ecran.png"));
+            string? saved = overlay.SaveSnapshot();
+            if (saved != null) File.Copy(saved, Path.Combine(directory, "overlay.png"), true);
+            Console.WriteLine($"overlay {area} -> {directory}");
+            // Transparence aux clics : la fenêtre « touchée » au centre doit être le jeu, pas l'overlay.
+            var center = new Point(area.X + area.Width / 2, area.Y + area.Height / 2);
+            IntPtr hit = GetAncestor(WindowFromPoint(center), GA_ROOT);
+            Console.WriteLine(hit == window.Handle ? "clic au centre : reçu par la fenêtre du jeu"
+                : hit == overlay.Handle ? "clic au centre : intercepté par l'overlay (ÉCHEC)"
+                : "clic au centre : traverse l'overlay (le jeu est recouvert à cet endroit par une autre fenêtre)");
+            Console.WriteLine(WindowList.DescribeGeometry(window.Handle));
+            overlay.Close();
+        };
+        overlay.Shown += (_, _) => timer.Start();
+        Application.Run(overlay);
+        return 0;
+    }
+
+    /// <summary>Copie d'une zone de l'écran, fenêtres « calques » comprises (CAPTUREBLT).</summary>
+    static Bitmap ScreenGrab(Rectangle area)
+    {
+        var bitmap = new Bitmap(area.Width, area.Height);
+        using var g = Graphics.FromImage(bitmap);
+        IntPtr screenDc = GetDC(IntPtr.Zero);
+        IntPtr bitmapDc = g.GetHdc();
+        BitBlt(bitmapDc, 0, 0, area.Width, area.Height, screenDc, area.X, area.Y, SRCCOPY | CAPTUREBLT);
+        g.ReleaseHdc(bitmapDc);
+        ReleaseDC(IntPtr.Zero, screenDc);
+        return bitmap;
+    }
+
+    const uint GA_ROOT = 2;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point point);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+
+    const uint SRCCOPY = 0x00CC0020;
+    const uint CAPTUREBLT = 0x40000000;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr hwnd);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern int ReleaseDC(IntPtr hwnd, IntPtr dc);
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+    static extern bool BitBlt(IntPtr dest, int x, int y, int width, int height, IntPtr source, int sourceX, int sourceY, uint rop);
 }
