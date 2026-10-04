@@ -18,10 +18,21 @@ sealed class Renderer : IDisposable
 
     ID3D11RenderTargetView? _renderTarget;
     int _width, _height;
-    int _framesSinceLastRead;
+    // Statistiques depuis la dernière lecture : images traitées, temps total et pire temps.
+    int _frames;
+    double _busyMs, _worstMs;
 
-    /// <summary>Nombre d'images capturées et affichées depuis le dernier appel (remis à zéro).</summary>
-    public int TakeFrameCount() => Interlocked.Exchange(ref _framesSinceLastRead, 0);
+    /// <summary>Images affichées, temps moyen et pire temps de traitement depuis le dernier appel (remis à zéro).</summary>
+    public (int Frames, double AverageMs, double WorstMs) TakeStats()
+    {
+        lock (_sync)
+        {
+            var stats = (_frames, _frames == 0 ? 0 : _busyMs / _frames, _worstMs);
+            _frames = 0;
+            _busyMs = _worstMs = 0;
+            return stats;
+        }
+    }
 
     public Renderer(ID3D11Device device, IntPtr hwnd, int width, int height)
     {
@@ -62,10 +73,14 @@ sealed class Renderer : IDisposable
     {
         lock (_sync)
         {
+            long start = System.Diagnostics.Stopwatch.GetTimestamp();
             _filter.SetSource(frame, contentWidth, contentHeight);
             _filter.Apply();
             Draw();
-            Interlocked.Increment(ref _framesSinceLastRead);
+            double ms = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+            _frames++;
+            _busyMs += ms;
+            _worstMs = Math.Max(_worstMs, ms);
         }
     }
 

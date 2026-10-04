@@ -9,9 +9,9 @@ static class Program
         if (args.Length is 3 or 4 && args[0] == "--snapshot")
             return Snapshot(args[1], args[2], args.Length == 4 ? int.Parse(args[3]) : 1);
 
-        // Mesure du débit de capture avec filtre : RetroFilter --fps "<partie du titre>" <0|1 priorité haute>
+        // Mesure du débit de capture avec filtre : RetroFilter --fps "<partie du titre>" <priorité 0 normale, 1 haute, 2 temps réel>
         if (args.Length == 3 && args[0] == "--fps")
-            return Fps(args[1], args[2] == "1");
+            return Fps(args[1], int.Parse(args[2]));
 
         // Mesure du temps GPU de la passe CGA : RetroFilter --bench "<partie du titre>"
         if (args.Length == 2 && args[0] == "--bench")
@@ -125,7 +125,7 @@ static class Program
     }
 
     /// <summary>Pendant 5 secondes, filtre chaque image capturée et mesure le débit et le temps de traitement.</summary>
-    static int Fps(string titlePart, bool raisePriority)
+    static int Fps(string titlePart, int priority)
     {
         var window = WindowList.GetCapturableWindows()
             .FirstOrDefault(w => w.Title.Contains(titlePart, StringComparison.OrdinalIgnoreCase));
@@ -136,7 +136,7 @@ static class Program
         }
 
         using var device = GpuDevice.Create();
-        if (raisePriority) Console.WriteLine(GpuPriority.Raise(device));
+        Console.WriteLine($"priorité GPU {GpuPriority.Levels[priority].Name} : {(GpuPriority.Set(device, priority) ? "acceptée" : "refusée")}");
         using var filter = new CgaFilter(device);
         int frames = 0;
         double busyMs = 0, worstMs = 0;

@@ -6,26 +6,25 @@ using Vortice.DXGI;
 namespace RetroFilter;
 
 /// <summary>
-/// Hausse de la priorité GPU de l'app, comme le fait OBS : sans elle, un jeu qui
-/// occupe le GPU à 100 % fait passer son travail avant le nôtre et l'affichage saccade.
+/// Priorité GPU de l'app, comme le fait OBS : sans elle, un jeu qui occupe le GPU
+/// à 100 % fait passer son travail avant le nôtre et l'affichage saccade.
 /// </summary>
 static class GpuPriority
 {
-    // D3DKMT_SCHEDULINGPRIORITYCLASS. « Temps réel » (5) est aussi accepté sans droits
-    // administrateur, mais OBS l'évite quand l'ordonnancement GPU matériel est actif.
-    const int High = 4;
+    /// <summary>Niveaux proposés (valeurs de D3DKMT_SCHEDULINGPRIORITYCLASS).</summary>
+    public static readonly (string Name, int Value)[] Levels =
+    [
+        ("normale", 2),
+        ("haute", 4),
+        ("temps réel", 5),
+    ];
 
-    /// <summary>Tente d'augmenter la priorité ; renvoie un résumé de ce qui a été obtenu.</summary>
-    public static string Raise(ID3D11Device device)
+    /// <summary>Applique le niveau donné (index dans Levels) ; renvoie false si Windows refuse.</summary>
+    public static bool Set(ID3D11Device device, int level)
     {
-        IntPtr process = Process.GetCurrentProcess().Handle;
-        string schedule = D3DKMTSetProcessSchedulingPriorityClass(process, High) == 0 ? "haute" : "normale (refusée)";
-
-        string thread;
         using (var dxgiDevice = device.QueryInterface<IDXGIDevice>())
-            thread = dxgiDevice.SetGPUThreadPriority(7).Success ? "7" : "refusée";
-
-        return $"priorité GPU {schedule}, thread {thread}";
+            dxgiDevice.SetGPUThreadPriority(level == 0 ? 0 : 7);
+        return D3DKMTSetProcessSchedulingPriorityClass(Process.GetCurrentProcess().Handle, Levels[level].Value) == 0;
     }
 
     [DllImport("gdi32.dll")]

@@ -22,7 +22,8 @@ sealed class PreviewForm : Form
     readonly WindowInfo _target;
     readonly System.Windows.Forms.Timer _fpsTimer = new() { Interval = 1000 };
     int _mode;
-    int _fps;
+    int _priority = 2;
+    string _stats = "";
     string? _status;
     ID3D11Device? _device;
     Renderer? _renderer;
@@ -45,7 +46,7 @@ sealed class PreviewForm : Form
         base.OnHandleCreated(e);
 
         _device = GpuDevice.Create();
-        GpuPriority.Raise(_device);
+        GpuPriority.Set(_device, _priority);
         _renderer = new Renderer(_device, Handle, ClientSize.Width, ClientSize.Height);
         _capture = new WindowCapture(_device, _target.Handle);
         _capture.FrameArrived += _renderer.SubmitFrame;
@@ -53,7 +54,8 @@ sealed class PreviewForm : Form
 
         _fpsTimer.Tick += (_, _) =>
         {
-            _fps = _renderer.TakeFrameCount();
+            var (frames, average, worst) = _renderer.TakeStats();
+            _stats = $"{frames} i/s, traitement {average:F1} ms (pire {worst:F0})";
             UpdateTitle();
         };
         _fpsTimer.Start();
@@ -85,6 +87,12 @@ sealed class PreviewForm : Form
                 _renderer.PixelSize = Modes[_mode].PixelSize;
                 UpdateTitle();
                 break;
+            case Keys.F7:
+                if (_device == null) break;
+                _priority = (_priority + 1) % GpuPriority.Levels.Length;
+                _status = GpuPriority.Set(_device, _priority) ? null : "priorité refusée par Windows";
+                UpdateTitle();
+                break;
             case Keys.F12:
                 SaveSnapshot();
                 break;
@@ -109,7 +117,8 @@ sealed class PreviewForm : Form
     void UpdateTitle()
     {
         string filter = _renderer?.FilterEnabled == false ? "filtre coupé" : Modes[_mode].Name;
-        Text = $"Aperçu : {_target.Title}   [{filter}]   {_fps} i/s   F8 mode, F9 filtre, F12 PNG" + (_status == null ? "" : $"   ({_status})");
+        Text = $"Aperçu [{filter}]   {_stats}   GPU {GpuPriority.Levels[_priority].Name}   F7 priorité, F8 mode, F9 filtre, F12 PNG"
+            + (_status == null ? "" : $"   ({_status})");
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
