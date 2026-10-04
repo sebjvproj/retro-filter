@@ -131,6 +131,17 @@ sealed class Renderer : IDisposable
         }
     }
 
+    /// <summary>Modifie les réglages du filtre et redessine.</summary>
+    public void Configure(Action<CgaSettings> change)
+    {
+        lock (_sync)
+        {
+            change(_filter.Settings);
+            _filter.Apply();
+            Draw();
+        }
+    }
+
     /// <summary>Taille des gros pixels ; 0 = résolution fixe 320x200.</summary>
     public int PixelSize
     {

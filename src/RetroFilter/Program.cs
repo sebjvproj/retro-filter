@@ -5,9 +5,15 @@ static class Program
     [STAThread]
     static int Main(string[] args)
     {
-        // Mode test sans interface : RetroFilter --snapshot "<partie du titre>" <dossier> [taille de pixel] [rapide]
-        if (args.Length is 3 or 4 or 5 && args[0] == "--snapshot")
-            return Snapshot(args[1], args[2], args.Length >= 4 ? int.Parse(args[3]) : 1, args.Length == 5 && args[4] == "rapide");
+        // Mode test sans interface : RetroFilter --snapshot "<partie du titre>" <dossier> [options]
+        // Options : taille de pixel (nombre, 0 = 320x200), « rapide » (moyenne 2x2), « palette=N » (index dans FilterModes.Palettes).
+        if (args.Length >= 3 && args[0] == "--snapshot")
+        {
+            var options = args.Skip(3).ToList();
+            int pixelSize = options.Where(o => o.All(char.IsDigit)).Select(int.Parse).DefaultIfEmpty(1).First();
+            int palette = options.Where(o => o.StartsWith("palette=")).Select(o => int.Parse(o[8..])).DefaultIfEmpty(0).First();
+            return Snapshot(args[1], args[2], pixelSize, options.Contains("rapide"), palette);
+        }
 
         // Mesure du débit de capture avec filtre : RetroFilter --fps "<partie du titre>" <priorité 0 normale, 1 haute, 2 temps réel>
         // Options à la fin : « brut » mesure la capture seule, sans filtre ; « plafond » garde la limite de Windows.
@@ -31,7 +37,7 @@ static class Program
     /// Capture une image de la fenêtre et enregistre dans le dossier : source.png (brute),
     /// cga-small.png (sortie de la passe CGA) et cga.png (agrandie à la taille de la capture).
     /// </summary>
-    static int Snapshot(string titlePart, string directory, int pixelSize, bool fastSampling)
+    static int Snapshot(string titlePart, string directory, int pixelSize, bool fastSampling, int palette)
     {
         var window = WindowList.GetCapturableWindows()
             .FirstOrDefault(w => w.Title.Contains(titlePart, StringComparison.OrdinalIgnoreCase));
@@ -45,6 +51,7 @@ static class Program
         using var device = GpuDevice.Create();
         using var filter = new CgaFilter(device);
         filter.FastSampling = fastSampling;
+        FilterModes.ApplyPalette(filter.Settings, palette);
         filter.Settings.PixelSize = pixelSize;
         using var capture = new WindowCapture(device, window.Handle);
         using var done = new ManualResetEventSlim();
@@ -199,11 +206,11 @@ static class Program
 
         Directory.CreateDirectory(directory);
         ApplicationConfiguration.Initialize();
-        var overlay = new OverlayForm(window.Handle, 0)
+        var overlay = new OverlayForm(window.Handle, 0, 0)
         {
             AlwaysVisible = true,
             InfoVisible = true,
-            Hint = "Ctrl+Alt + T mode, S image PNG, I infos, R retirer le filtre",
+            Hint = "Ctrl+Alt + T mode, P palette, S image PNG, I infos, R retirer le filtre",
         };
         var timer = new System.Windows.Forms.Timer { Interval = 3000 };
         timer.Tick += (_, _) =>

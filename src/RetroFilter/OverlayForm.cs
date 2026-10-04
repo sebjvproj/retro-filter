@@ -20,6 +20,7 @@ sealed class OverlayForm : Form
     Rectangle _bounds;
     bool _shown = true; // Show() rend la fenêtre visible ; Follow() la cache ensuite si besoin.
     int _mode;
+    int _palette;
     string _stats = "";
     string? _message;
     DateTime _messageUntil;
@@ -35,10 +36,11 @@ sealed class OverlayForm : Form
 
     public IntPtr Game => _game;
 
-    public OverlayForm(IntPtr game, int mode)
+    public OverlayForm(IntPtr game, int mode, int palette)
     {
         _game = game;
         _mode = mode;
+        _palette = palette;
         Text = "retro-filter";
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
@@ -74,6 +76,7 @@ sealed class OverlayForm : Form
             Crop = WindowList.GetClientRectInCapture(_game),
             PixelSize = FilterModes.All[_mode].PixelSize,
         };
+        _renderer.Configure(s => FilterModes.ApplyPalette(s, _palette));
         _capture = new WindowCapture(_device, _game);
         _capture.FrameArrived += _renderer.SubmitFrame;
         _capture.Closed += () => BeginInvoke(Close);
@@ -124,7 +127,7 @@ sealed class OverlayForm : Form
             var (frames, average, _) = _renderer!.TakeStats();
             double fps = frames / _statsClock.Elapsed.TotalSeconds;
             _statsClock.Restart();
-            _stats = $"{FilterModes.All[_mode].Name}   {fps:F0} i/s   {average:F1} ms";
+            _stats = $"{FilterModes.All[_mode].Name}, {FilterModes.Palettes[_palette].Name}   {fps:F0} i/s   {average:F1} ms";
         }
 
         bool message = _message != null && DateTime.Now < _messageUntil;
@@ -155,8 +158,17 @@ sealed class OverlayForm : Form
         return _mode;
     }
 
+    /// <summary>Passe à la palette suivante ; renvoie son index.</summary>
+    public int NextPalette()
+    {
+        _palette = (_palette + 1) % FilterModes.Palettes.Length;
+        _renderer?.Configure(s => FilterModes.ApplyPalette(s, _palette));
+        return _palette;
+    }
+
     /// <summary>Enregistre la capture brute et l'image filtrée ; renvoie le chemin de l'image filtrée.</summary>
-    public string? SaveSnapshot() => _renderer?.SaveSnapshot(FilterModes.SnapshotDirectory, FilterModes.All[_mode].File);
+    public string? SaveSnapshot() => _renderer?.SaveSnapshot(FilterModes.SnapshotDirectory,
+        $"{FilterModes.All[_mode].File}_{FilterModes.Palettes[_palette].File}");
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
