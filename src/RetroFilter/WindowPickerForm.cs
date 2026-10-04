@@ -12,12 +12,13 @@ sealed class WindowPickerForm : Form
     // Raccourcis globaux : Ctrl+Alt + lettre. Lettres choisies pour ne pas produire de caractère
     // avec AltGr (= Ctrl+Alt) sur un clavier AZERTY.
     // Ctrl+Alt+M et Ctrl+Alt+G sont déjà pris par une autre application chez l'utilisateur.
-    enum Hotkey { Toggle = 1, NextMode = 2, Save = 3, Info = 4, NextPalette = 5 }
+    enum Hotkey { Toggle = 1, NextMode = 2, Save = 3, Info = 4, NextPalette = 5, NextMachine = 6 }
     static readonly (Hotkey Id, Keys Key, string Description)[] Hotkeys =
     [
         (Hotkey.Toggle, Keys.R, "Ctrl+Alt+R : filtre sur le jeu au premier plan, ou retrait du filtre"),
         (Hotkey.NextMode, Keys.T, "Ctrl+Alt+T : mode de tramage suivant (moderne, pixel 2 à 4, historique)"),
-        (Hotkey.NextPalette, Keys.P, "Ctrl+Alt+P : palette CGA suivante"),
+        (Hotkey.NextMachine, Keys.C, "Ctrl+Alt+C : carte graphique suivante (CGA, EGA)"),
+        (Hotkey.NextPalette, Keys.P, "Ctrl+Alt+P : palette suivante"),
         (Hotkey.Save, Keys.S, "Ctrl+Alt+S : enregistrer l'image filtrée en PNG (Images\\retro-filter)"),
         (Hotkey.Info, Keys.I, "Ctrl+Alt+I : afficher ou cacher la barre d'informations"),
     ];
@@ -27,8 +28,7 @@ sealed class WindowPickerForm : Form
     readonly Button _preview = new() { Text = "Aperçu (test)", AutoSize = true };
     readonly Label _status = new() { Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(4) };
     OverlayForm? _overlay;
-    int _mode;
-    int _palette;
+    readonly FilterState _state = new();
     bool _infoVisible = true;
     string _hint = "";
 
@@ -75,7 +75,7 @@ sealed class WindowPickerForm : Form
         _status.Text = refused.Count == 0
             ? "Raccourcis actifs."
             : "Raccourcis déjà pris par une autre application : " + string.Join(", ", refused.Select(h => "Ctrl+Alt+" + h.Key));
-        _hint = "Ctrl+Alt + T mode, P palette, S image PNG, I infos, R retirer le filtre";
+        _hint = "Ctrl+Alt + C carte, T mode, P palette, S image PNG, I infos, R retirer le filtre";
         if (refused.Count > 0)
             _hint += "   (inactifs : " + string.Join(", ", refused.Select(h => h.Key)) + ")";
     }
@@ -95,16 +95,15 @@ sealed class WindowPickerForm : Form
                 if (_overlay != null) _overlay.Close();
                 else Attach(WindowList.Foreground);
                 break;
+            case Hotkey.NextMachine:
             case Hotkey.NextMode:
-                if (_overlay == null) break;
-                _mode = _overlay.NextMode();
-                _status.Text = $"Mode : {FilterModes.All[_mode].Name}";
-                _overlay.ShowMessage(_status.Text);
-                break;
             case Hotkey.NextPalette:
                 if (_overlay == null) break;
-                _palette = _overlay.NextPalette();
-                _status.Text = $"Palette : {FilterModes.Palettes[_palette].Name}";
+                if (hotkey == Hotkey.NextMachine) _state.NextMachine();
+                else if (hotkey == Hotkey.NextMode) _state.NextMode();
+                else _state.NextPalette();
+                _overlay.ApplyState();
+                _status.Text = _state.Description;
                 _overlay.ShowMessage(_status.Text);
                 break;
             case Hotkey.Info:
@@ -141,7 +140,7 @@ sealed class WindowPickerForm : Form
 
         try
         {
-            _overlay = new OverlayForm(game.Handle, _mode, _palette) { InfoVisible = _infoVisible, Hint = _hint };
+            _overlay = new OverlayForm(game.Handle, _state) { InfoVisible = _infoVisible, Hint = _hint };
             _overlay.FormClosed += (_, _) =>
             {
                 _overlay = null;

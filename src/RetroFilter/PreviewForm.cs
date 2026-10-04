@@ -96,7 +96,7 @@ sealed class PreviewForm : Form
     {
         try
         {
-            string? path = _renderer?.SaveSnapshot(FilterModes.SnapshotDirectory, Modes[_mode].File);
+            string? path = _renderer?.SaveSnapshot(FilterModes.SnapshotDirectory, "cga-" + Modes[_mode].File);
             _status = path == null ? "aucune image capturée pour l'instant" : $"enregistré : {Path.GetFileName(path)}";
             UpdateTitle();
         }
@@ -109,7 +109,7 @@ sealed class PreviewForm : Form
 
     void UpdateTitle()
     {
-        string filter = _renderer?.FilterEnabled == false ? "filtre coupé" : Modes[_mode].Name;
+        string filter = _renderer?.FilterEnabled == false ? "filtre coupé" : "CGA " + Modes[_mode].Name;
         if (_renderer?.FilterEnabled == true && Modes[_mode].PixelSize == 1)
             filter += _renderer.FastSampling ? ", 2x2 lectures" : ", 8x8 lectures";
         Text = $"Aperçu [{filter}]   {_stats}   GPU {GpuPriority.Levels[_priority].Name}   F6 lectures, F7 priorité, F8 mode, F9 filtre, F12 PNG"

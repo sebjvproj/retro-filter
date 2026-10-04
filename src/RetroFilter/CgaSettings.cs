@@ -27,7 +27,7 @@ sealed class CgaSettings
             : (Math.Max(1, (int)Math.Round((double)sourceWidth / PixelSize)),
                Math.Max(1, (int)Math.Round((double)sourceHeight / PixelSize)));
 
-    internal CgaParams ToParams(int width, int height) => new()
+    internal CgaParams ToParams(int width, int height, int colorCount) => new()
     {
         OutputSize = new Vector4(width, height, 1.0f / width, 1.0f / height),
         Palette = Palette,
@@ -37,10 +37,11 @@ sealed class CgaSettings
         Brightness = Brightness,
         Contrast = Contrast,
         Saturation = Saturation,
+        ColorCount = colorCount,
     };
 }
 
-/// <summary>Tampon de constantes de Shaders/cga-v2.hlsl (même ordre, 48 octets).</summary>
+/// <summary>Tampon de constantes de Shaders/dither.hlsl et cga-v2.hlsl (même ordre, 48 octets).</summary>
 [StructLayout(LayoutKind.Sequential)]
 struct CgaParams
 {
@@ -52,5 +53,5 @@ struct CgaParams
     public float Brightness;
     public float Contrast;
     public float Saturation;
-    public float Padding;
+    public float ColorCount;
 }

@@ -19,8 +19,7 @@ sealed class OverlayForm : Form
     readonly System.Diagnostics.Stopwatch _statsClock = System.Diagnostics.Stopwatch.StartNew();
     Rectangle _bounds;
     bool _shown = true; // Show() rend la fenêtre visible ; Follow() la cache ensuite si besoin.
-    int _mode;
-    int _palette;
+    readonly FilterState _state;
     string _stats = "";
     string? _message;
     DateTime _messageUntil;
@@ -36,11 +35,10 @@ sealed class OverlayForm : Form
 
     public IntPtr Game => _game;
 
-    public OverlayForm(IntPtr game, int mode, int palette)
+    public OverlayForm(IntPtr game, FilterState state)
     {
         _game = game;
-        _mode = mode;
-        _palette = palette;
+        _state = state;
         Text = "retro-filter";
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
@@ -74,9 +72,8 @@ sealed class OverlayForm : Form
         _renderer = new Renderer(_device, Handle, ClientSize.Width, ClientSize.Height)
         {
             Crop = WindowList.GetClientRectInCapture(_game),
-            PixelSize = FilterModes.All[_mode].PixelSize,
         };
-        _renderer.Configure(s => FilterModes.ApplyPalette(s, _palette));
+        _renderer.Configure(_state.Apply);
         _capture = new WindowCapture(_device, _game);
         _capture.FrameArrived += _renderer.SubmitFrame;
         _capture.Closed += () => BeginInvoke(Close);
@@ -127,7 +124,7 @@ sealed class OverlayForm : Form
             var (frames, average, _) = _renderer!.TakeStats();
             double fps = frames / _statsClock.Elapsed.TotalSeconds;
             _statsClock.Restart();
-            _stats = $"{FilterModes.All[_mode].Name}, {FilterModes.Palettes[_palette].Name}   {fps:F0} i/s   {average:F1} ms";
+            _stats = $"{_state.Description}   {fps:F0} i/s   {average:F1} ms";
         }
 
         bool message = _message != null && DateTime.Now < _messageUntil;
@@ -150,25 +147,16 @@ sealed class OverlayForm : Form
         _renderer?.Resize(ClientSize.Width, ClientSize.Height);
     }
 
-    /// <summary>Passe au mode suivant ; renvoie son index.</summary>
-    public int NextMode()
+    /// <summary>Applique au filtre le choix courant (après un changement de carte, mode ou palette).</summary>
+    public void ApplyState()
     {
-        _mode = (_mode + 1) % FilterModes.All.Length;
-        if (_renderer != null) _renderer.PixelSize = FilterModes.All[_mode].PixelSize;
-        return _mode;
-    }
-
-    /// <summary>Passe à la palette suivante ; renvoie son index.</summary>
-    public int NextPalette()
-    {
-        _palette = (_palette + 1) % FilterModes.Palettes.Length;
-        _renderer?.Configure(s => FilterModes.ApplyPalette(s, _palette));
-        return _palette;
+        _renderer?.Configure(_state.Apply);
+        _statsClock.Restart();
+        _stats = _state.Description;
     }
 
     /// <summary>Enregistre la capture brute et l'image filtrée ; renvoie le chemin de l'image filtrée.</summary>
-    public string? SaveSnapshot() => _renderer?.SaveSnapshot(FilterModes.SnapshotDirectory,
-        $"{FilterModes.All[_mode].File}_{FilterModes.Palettes[_palette].File}");
+    public string? SaveSnapshot() => _renderer?.SaveSnapshot(FilterModes.SnapshotDirectory, _state.FileLabel);
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {

@@ -8,6 +8,42 @@ namespace RetroFilter;
 /// <summary>Enregistre une texture BGRA du GPU en fichier PNG.</summary>
 static class TextureSaver
 {
+    /// <summary>Lit les pixels BGRA d'une texture (4 octets par pixel, lignes à la suite).</summary>
+    public static byte[] ReadPixels(ID3D11Device device, ID3D11Texture2D texture, int width, int height)
+    {
+        using var staging = CreateStaging(device, texture, width, height);
+        var context = device.ImmediateContext;
+        var mapped = context.Map(staging, 0, MapMode.Read);
+        try
+        {
+            var pixels = new byte[width * height * 4];
+            for (int y = 0; y < height; y++)
+                Marshal.Copy(mapped.DataPointer + y * (int)mapped.RowPitch, pixels, y * width * 4, width * 4);
+            return pixels;
+        }
+        finally
+        {
+            context.Unmap(staging, 0);
+        }
+    }
+
+    static ID3D11Texture2D CreateStaging(ID3D11Device device, ID3D11Texture2D texture, int width, int height)
+    {
+        var staging = device.CreateTexture2D(new Texture2DDescription
+        {
+            Width = (uint)width,
+            Height = (uint)height,
+            MipLevels = 1,
+            ArraySize = 1,
+            Format = Format.B8G8R8A8_UNorm,
+            SampleDescription = new SampleDescription(1, 0),
+            Usage = ResourceUsage.Staging,
+            CPUAccessFlags = CpuAccessFlags.Read,
+        });
+        device.ImmediateContext.CopySubresourceRegion(staging, 0, 0, 0, 0, texture, 0, new Vortice.Mathematics.Box(0, 0, 0, width, height, 1));
+        return staging;
+    }
+
     public static void SavePng(ID3D11Device device, ID3D11Texture2D texture, int width, int height, string path)
     {
         using var staging = device.CreateTexture2D(new Texture2DDescription

@@ -6,7 +6,7 @@ static class Program
     static int Main(string[] args)
     {
         // Mode test sans interface : RetroFilter --snapshot "<partie du titre>" <dossier> [options]
-        // Options : taille de pixel (nombre, 0 = 320x200), « rapide » (moyenne 2x2), « palette=N » (index dans FilterModes.Palettes).
+        // Options : taille de pixel (nombre, 0 = 320x200), « rapide » (moyenne 2x2), « palette=N » (index dans FilterModes.AllPalettes).
         if (args.Length >= 3 && args[0] == "--snapshot")
         {
             var options = args.Skip(3).ToList();
@@ -23,6 +23,10 @@ static class Program
         // Test de l'overlay : le pose 3 s sur la fenêtre, puis enregistre ce qui est à l'écran à cet endroit.
         if (args.Length == 3 && args[0] == "--overlay")
             return OverlayTest(args[1], args[2]);
+
+        // Compare dither.hlsl à la v2 de référence (cga-v2.hlsl) : RetroFilter --verify "<partie du titre>"
+        if (args.Length == 2 && args[0] == "--verify")
+            return Verify(args[1]);
 
         // Mesure du temps GPU de la passe CGA : RetroFilter --bench "<partie du titre>"
         if (args.Length == 2 && args[0] == "--bench")
@@ -51,7 +55,7 @@ static class Program
         using var device = GpuDevice.Create();
         using var filter = new CgaFilter(device);
         filter.FastSampling = fastSampling;
-        FilterModes.ApplyPalette(filter.Settings, palette);
+        FilterModes.ApplyPalette(filter.Settings, FilterModes.AllPalettes[palette].Palette);
         filter.Settings.PixelSize = pixelSize;
         using var capture = new WindowCapture(device, window.Handle);
         using var done = new ManualResetEventSlim();
@@ -133,7 +137,77 @@ static class Program
         filter.Settings.PixelSize = 1;
         filter.FastSampling = true;
         Console.WriteLine($"{"pixel 1, 2x2 lectures",-24} {Measure(filter),7:F2} ms par image");
+        filter.FastSampling = false;
+
+        // Coût selon la palette, en mode moderne (pixel 1).
+        foreach (var (machine, palette) in FilterModes.AllPalettes)
+        {
+            FilterModes.ApplyPalette(filter.Settings, palette);
+            Console.WriteLine($"pixel 1, {machine.Name + " " + palette.Name,-34} {Measure(filter),7:F2} ms par image");
+        }
         return 0;
+    }
+
+    /// <summary>
+    /// Sur une même image capturée, pour chaque palette et en modes pixel 1 et 320x200 :
+    /// pixels différents entre dither.hlsl et la v2 de référence, et temps de chacun.
+    /// </summary>
+    static int Verify(string titlePart)
+    {
+        var window = WindowList.GetCapturableWindows()
+            .FirstOrDefault(w => w.Title.Contains(titlePart, StringComparison.OrdinalIgnoreCase));
+        if (window == null)
+        {
+            Console.Error.WriteLine($"Aucune fenêtre ne contient « {titlePart} ».");
+            return 2;
+        }
+
+        using var device = GpuDevice.Create();
+        using var filter = new CgaFilter(device);
+        using var done = new ManualResetEventSlim();
+        using (var capture = new WindowCapture(device, window.Handle))
+        {
+            capture.FrameArrived += (texture, width, height) =>
+            {
+                if (done.IsSet) return;
+                filter.SetSource(texture, width, height);
+                done.Set();
+            };
+            if (!done.Wait(TimeSpan.FromSeconds(5)))
+            {
+                Console.Error.WriteLine("Aucune image reçue en 5 secondes.");
+                return 3;
+            }
+        }
+
+        Console.WriteLine($"Capture {filter.SourceWidth}x{filter.SourceHeight}");
+        int failures = 0;
+        foreach (int pixelSize in new[] { 1, 0 })
+        {
+            foreach (var (machine, palette) in FilterModes.AllPalettes)
+            {
+                filter.Settings.PixelSize = pixelSize;
+                FilterModes.ApplyPalette(filter.Settings, palette);
+
+                filter.UseReference = true;
+                double referenceMs = Measure(filter);
+                var expected = filter.ReadSmall();
+                filter.UseReference = false;
+                double newMs = Measure(filter);
+                var actual = filter.ReadSmall();
+
+                int different = 0;
+                for (int p = 0; p < expected.Length; p += 4)
+                    if (expected[p] != actual[p] || expected[p + 1] != actual[p + 1] || expected[p + 2] != actual[p + 2]) different++;
+                double percent = 100.0 * different / (expected.Length / 4);
+                if (percent > 0.01) failures++;
+
+                string mode = pixelSize == 0 ? "320x200" : "pixel 1";
+                Console.WriteLine($"{mode,-8} {machine.Name + " " + palette.Name,-34} {different,6} px différents ({percent:F3} %)   v2 {referenceMs,6:F2} ms   nouveau {newMs,6:F2} ms");
+            }
+        }
+        Console.WriteLine(failures == 0 ? "OK : identique à la v2 de référence (moins de 0,01 % d'écart)." : $"ÉCART : {failures} cas au-dessus de 0,01 %.");
+        return failures == 0 ? 0 : 1;
     }
 
     /// <summary>Temps moyen de la passe CGA, en millisecondes.</summary>
@@ -206,11 +280,11 @@ static class Program
 
         Directory.CreateDirectory(directory);
         ApplicationConfiguration.Initialize();
-        var overlay = new OverlayForm(window.Handle, 0, 0)
+        var overlay = new OverlayForm(window.Handle, new FilterState())
         {
             AlwaysVisible = true,
             InfoVisible = true,
-            Hint = "Ctrl+Alt + T mode, P palette, S image PNG, I infos, R retirer le filtre",
+            Hint = "Ctrl+Alt + C carte, T mode, P palette, S image PNG, I infos, R retirer le filtre",
         };
         var timer = new System.Windows.Forms.Timer { Interval = 3000 };
         timer.Tick += (_, _) =>
