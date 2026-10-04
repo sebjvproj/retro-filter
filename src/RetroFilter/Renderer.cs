@@ -1,5 +1,3 @@
-using Vortice.D3DCompiler;
-using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Vortice.Mathematics;
@@ -7,7 +5,7 @@ using Vortice.Mathematics;
 namespace RetroFilter;
 
 /// <summary>
-/// Dessine la dernière image capturée dans une fenêtre, en gardant ses proportions.
+/// Affiche la capture filtrée dans une fenêtre, en gardant ses proportions.
 /// Appelé à la fois par le thread de capture et par le thread de l'interface : tout passe par un verrou.
 /// </summary>
 sealed class Renderer : IDisposable
@@ -16,17 +14,10 @@ sealed class Renderer : IDisposable
     readonly ID3D11Device _device;
     readonly ID3D11DeviceContext _context;
     readonly IDXGISwapChain1 _swapChain;
-    readonly ID3D11VertexShader _vertexShader;
-    readonly ID3D11PixelShader _pixelShader;
-    readonly ID3D11SamplerState _sampler;
+    readonly CgaFilter _filter;
 
     ID3D11RenderTargetView? _renderTarget;
     int _width, _height;
-
-    // Copie de la dernière image capturée, pour pouvoir redessiner sans nouvelle image.
-    ID3D11Texture2D? _source;
-    ID3D11ShaderResourceView? _sourceView;
-    int _sourceWidth, _sourceHeight;
 
     public Renderer(ID3D11Device device, IntPtr hwnd, int width, int height)
     {
@@ -53,16 +44,7 @@ sealed class Renderer : IDisposable
         factory.MakeWindowAssociation(hwnd, WindowAssociationFlags.IgnoreAltEnter);
         CreateRenderTarget();
 
-        string path = Path.Combine(AppContext.BaseDirectory, "Shaders", "passthrough.hlsl");
-        string source = File.ReadAllText(path);
-        _vertexShader = device.CreateVertexShader(CompileShader(source, path, "VSMain", "vs_5_0"));
-        _pixelShader = device.CreatePixelShader(CompileShader(source, path, "PSMain", "ps_5_0"));
-        _sampler = device.CreateSamplerState(SamplerDescription.PointClamp);
-    }
-
-    static byte[] CompileShader(string source, string path, string entryPoint, string profile)
-    {
-        return Compiler.Compile(source, entryPoint, path, profile).ToArray();
+        _filter = new CgaFilter(device);
     }
 
     void CreateRenderTarget()
@@ -76,33 +58,38 @@ sealed class Renderer : IDisposable
     {
         lock (_sync)
         {
-            var desc = frame.Description;
-            int w = Math.Min(contentWidth, (int)desc.Width);
-            int h = Math.Min(contentHeight, (int)desc.Height);
-            if (w <= 0 || h <= 0) return;
-
-            if (_source == null || w != _sourceWidth || h != _sourceHeight)
-            {
-                _sourceView?.Dispose();
-                _source?.Dispose();
-                _source = _device.CreateTexture2D(new Texture2DDescription
-                {
-                    Width = (uint)w,
-                    Height = (uint)h,
-                    MipLevels = 1,
-                    ArraySize = 1,
-                    Format = Format.B8G8R8A8_UNorm,
-                    SampleDescription = new SampleDescription(1, 0),
-                    Usage = ResourceUsage.Default,
-                    BindFlags = BindFlags.ShaderResource,
-                });
-                _sourceView = _device.CreateShaderResourceView(_source);
-                _sourceWidth = w;
-                _sourceHeight = h;
-            }
-
-            _context.CopySubresourceRegion(_source, 0, 0, 0, 0, frame, 0, new Box(0, 0, 0, w, h, 1));
+            _filter.SetSource(frame, contentWidth, contentHeight);
+            _filter.Apply();
             Draw();
+        }
+    }
+
+    public bool FilterEnabled
+    {
+        get { lock (_sync) return _filter.Enabled; }
+        set
+        {
+            lock (_sync)
+            {
+                _filter.Enabled = value;
+                _filter.Apply();
+                Draw();
+            }
+        }
+    }
+
+    /// <summary>Enregistre la capture brute et l'image filtrée ; renvoie le chemin de l'image filtrée.</summary>
+    public string? SaveSnapshot(string directory)
+    {
+        lock (_sync)
+        {
+            if (!_filter.HasSource) return null;
+            Directory.CreateDirectory(directory);
+            string stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+            string output = Path.Combine(directory, $"{stamp}_cga.png");
+            _filter.SaveSource(Path.Combine(directory, $"{stamp}_source.png"));
+            _filter.SaveOutput(output);
+            return output;
         }
     }
 
@@ -117,7 +104,6 @@ sealed class Renderer : IDisposable
             _width = width;
             _height = height;
 
-            // Draw() repositionne tout l'état : on peut le vider pour libérer le tampon d'affichage.
             _context.ClearState();
             _renderTarget?.Dispose();
             _swapChain.ResizeBuffers(0, (uint)width, (uint)height, Format.Unknown, SwapChainFlags.None);
@@ -130,22 +116,13 @@ sealed class Renderer : IDisposable
     {
         _context.ClearRenderTargetView(_renderTarget!, new Color4(0, 0, 0, 1));
 
-        if (_sourceView != null)
+        if (_filter.HasSource)
         {
             // Bandes noires pour garder les proportions de l'image capturée.
-            float scale = Math.Min((float)_width / _sourceWidth, (float)_height / _sourceHeight);
-            float w = _sourceWidth * scale;
-            float h = _sourceHeight * scale;
-            _context.RSSetViewport(new Viewport((_width - w) / 2, (_height - h) / 2, w, h));
-
-            _context.OMSetRenderTargets(_renderTarget!);
-            _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-            _context.IASetInputLayout(null);
-            _context.VSSetShader(_vertexShader);
-            _context.PSSetShader(_pixelShader);
-            _context.PSSetShaderResource(0, _sourceView);
-            _context.PSSetSampler(0, _sampler);
-            _context.Draw(3, 0);
+            float scale = Math.Min((float)_width / _filter.SourceWidth, (float)_height / _filter.SourceHeight);
+            float w = _filter.SourceWidth * scale;
+            float h = _filter.SourceHeight * scale;
+            _filter.DrawOutput(_renderTarget!, new Viewport((_width - w) / 2, (_height - h) / 2, w, h));
         }
 
         _swapChain.Present(1, PresentFlags.None);
@@ -155,13 +132,8 @@ sealed class Renderer : IDisposable
     {
         lock (_sync)
         {
-            _context.ClearState();
-            _sourceView?.Dispose();
-            _source?.Dispose();
+            _filter.Dispose();
             _renderTarget?.Dispose();
-            _sampler.Dispose();
-            _pixelShader.Dispose();
-            _vertexShader.Dispose();
             _swapChain.Dispose();
             _context.Dispose();
         }
