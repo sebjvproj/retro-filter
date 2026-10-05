@@ -28,6 +28,10 @@ static class Program
         if (args.Length == 2 && args[0] == "--verify")
             return Verify(args[1]);
 
+        // Test de l'interface : RetroFilter --ui-test <dossier> (menu de la zone de notification, icône)
+        if (args.Length == 2 && args[0] == "--ui-test")
+            return UiTest(args[1]);
+
         // Mesure du temps GPU de la passe CGA : RetroFilter --bench "<partie du titre>"
         if (args.Length == 2 && args[0] == "--bench")
             return Bench(args[1]);
@@ -307,6 +311,54 @@ static class Program
         };
         overlay.Shown += (_, _) => timer.Start();
         Application.Run(overlay);
+        return 0;
+    }
+
+    /// <summary>
+    /// Enregistre l'icône (agrandie) et des captures du menu de la zone de notification,
+    /// avec chaque sous-menu (carte, mode, palette) déplié tour à tour.
+    /// </summary>
+    static int UiTest(string directory)
+    {
+        Directory.CreateDirectory(directory);
+        ApplicationConfiguration.Initialize();
+        using (var icon = RetroStyle.CreateIcon(32))
+        using (var bitmap = icon.ToBitmap())
+        using (var big = new Bitmap(128, 128))
+        {
+            using (var g = Graphics.FromImage(big))
+            {
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+                g.DrawImage(bitmap, 0, 0, 128, 128);
+            }
+            big.Save(Path.Combine(directory, "icone.png"));
+        }
+
+        var form = new WindowPickerForm();
+        int[] submenus = [2, 3, 4];
+        int step = 0;
+        var timer = new System.Windows.Forms.Timer { Interval = 700 };
+        Rectangle area = Rectangle.Empty;
+        timer.Tick += (_, _) =>
+        {
+            if (step > 0)
+            {
+                using var shot = ScreenGrab(area);
+                shot.Save(Path.Combine(directory, $"menu{step}.png"));
+            }
+            if (step == submenus.Length)
+            {
+                timer.Stop();
+                form.Exit();
+                return;
+            }
+            area = form.ShowTrayMenuForTest(new Point(200, 200), submenus[step]);
+            step++;
+        };
+        form.Shown += (_, _) => timer.Start();
+        Application.Run(form);
+        Console.WriteLine($"interface -> {directory}");
         return 0;
     }
 

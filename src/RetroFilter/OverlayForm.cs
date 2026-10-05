@@ -133,11 +133,11 @@ sealed class OverlayForm : Form
         _bar.Place(new Point(_bounds.X + 8, _bounds.Y + 8), overlayVisible && (InfoVisible || message));
     }
 
-    /// <summary>Affiche un message bref (2 s) dans la barre, même si elle est cachée.</summary>
-    public void ShowMessage(string text)
+    /// <summary>Affiche un message bref dans la barre, même si elle est cachée.</summary>
+    public void ShowMessage(string text, double seconds = 2)
     {
         _message = text;
-        _messageUntil = DateTime.Now.AddSeconds(2);
+        _messageUntil = DateTime.Now.AddSeconds(seconds);
         if (IsHandleCreated) UpdateInfoBar(_shown);
     }
 
