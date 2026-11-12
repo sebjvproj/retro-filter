@@ -26,7 +26,7 @@ Un jeu, une vidéo, une page web : retro-filter les affiche en CGA (4 couleurs) 
 - **Rapide.** Le calcul se fait sur la carte graphique, en 1 à 4 millisecondes par image en 1920×1080.
 - **Privé.** Aucun accès réseau, tout reste sur votre machine.
 
-Le projet est un prototype qui fonctionne, encore en cours de développement.
+Le projet est un prototype qui fonctionne, encore en cours de développement. L'interface existe en français et en anglais.
 
 ## Deux modes
 
@@ -65,6 +65,8 @@ Les images sont des extraits à taille réelle de la sortie de l'app.
 4. Cliquez sur **Poser le filtre**. Avec une zone, tracez d'abord le rectangle à la souris.
 
 La croix de la fenêtre la cache seulement : l'app continue dans la zone de notification. Un clic sur son icône la rouvre, un clic droit donne les mêmes choix et permet de quitter.
+
+L'app démarre en français sur un Windows en français, en anglais sinon. La langue se change dans « Avancé ».
 
 <br clear="right">
 

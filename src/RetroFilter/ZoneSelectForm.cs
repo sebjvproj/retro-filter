@@ -105,7 +105,7 @@ sealed class ZoneSelectForm : Form
         const TextFormatFlags centered = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix;
         if (_current.IsEmpty)
         {
-            TextRenderer.DrawText(g, "Trace un rectangle à la souris autour de ce que tu veux filtrer.\n\nÉchap pour annuler.",
+            TextRenderer.DrawText(g, L.T("Trace un rectangle à la souris autour de ce que tu veux filtrer.\n\nÉchap pour annuler.", "Draw a rectangle with the mouse around what you want to filter.\n\nEsc to cancel."),
                 RetroStyle.BigFont, ClientRectangle, RetroStyle.Cyan, BackColor, centered);
             return;
         }

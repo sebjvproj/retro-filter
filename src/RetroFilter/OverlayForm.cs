@@ -171,7 +171,7 @@ sealed class OverlayForm : Form
             var (frames, average, _) = _renderer!.TakeStats();
             double fps = frames / _statsClock.Elapsed.TotalSeconds;
             _statsClock.Restart();
-            _stats = $"{_state.Description}   {fps:F0} i/s   {average:F1} ms";
+            _stats = L.T($"{_state.Description}   {fps:F0} i/s   {average:F1} ms", $"{_state.Description}   {fps:F0} fps   {average:F1} ms");
         }
 
         bool message = _message != null && DateTime.Now < _messageUntil;

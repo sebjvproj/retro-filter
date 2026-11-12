@@ -26,14 +26,14 @@ A game, a video, a web page: retro-filter shows them in CGA (4 colors) or EGA (1
 - **Fast.** The work is done on the graphics card, in 1 to 4 milliseconds per frame at 1920×1080.
 - **Private.** No network access, everything stays on your machine.
 
-The project is a working prototype, still in development. The app's interface is in French for now.
+The project is a working prototype, still in development. The interface is available in English and in French.
 
 ## Two modes
 
 | Modern | Period |
 |:---:|:---:|
 | ![Modern mode](docs/mode-moderne.png) | ![Period mode](docs/mode-historique.png) |
-| Fine dithering, at screen resolution. The picture stays readable and gradients blend. In the app: *Moderne*. | 320×200, chunky pixels: what a 1981 PC really displayed. In the app: *Historique*. |
+| Fine dithering, at screen resolution. The picture stays readable and gradients blend. | 320×200, chunky pixels: what a 1981 PC really displayed. |
 
 ## Palettes
 
@@ -57,14 +57,16 @@ The images are actual-size crops of the app's output.
 
 ## Usage
 
-<img src="docs/fenetre.png" alt="The retro-filter window, in French: the list of open windows, the card, mode and palette buttons, and the big button that applies the filter" width="420" align="right">
+<img src="docs/fenetre-en.png" alt="The retro-filter window: the list of open windows, the card, mode and palette buttons, and the big Apply the filter button" width="420" align="right">
 
 1. Open what you want to filter. For a game, pick **windowed** or **borderless windowed** mode in its display options.
-2. In retro-filter, pick the window in the list, then **Toute la fenêtre** (whole window) or **Seulement une zone** (one area only).
-3. Pick the style: the **card** (*Carte*: CGA or EGA), the **mode** (*Moderne* or *Historique*) and the **palette**.
-4. Click **Poser le filtre** (apply the filter). With an area, first draw the rectangle with the mouse.
+2. In retro-filter, pick the window in the list, then **Whole window** or **One area only**.
+3. Pick the style: the **card** (CGA or EGA), the **mode** (Modern or Period) and the **palette**.
+4. Click **Apply the filter**. With an area, first draw the rectangle with the mouse.
 
 Closing the window only hides it: the app keeps running in the notification area. Click its icon to reopen it, right-click for the same choices and to quit.
+
+The app starts in French on a French Windows and in English otherwise. You can change the language under **Advanced**.
 
 <br clear="right">
 
@@ -75,7 +77,7 @@ Closing the window only hides it: the app keeps running in the notification area
 | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> | Applies the filter to the active window, or removes it |
 | <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd> | While the filter is on: saves the filtered image and the original as PNG files in `Pictures\retro-filter` |
 
-<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> is the only shortcut reserved at all times. More shortcuts (next card, mode and palette, info bar) can be turned on under *Avancé* (advanced).
+<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> is the only shortcut reserved at all times. More shortcuts (next card, mode and palette, info bar) can be turned on under **Advanced**.
 
 ## Build and run
 

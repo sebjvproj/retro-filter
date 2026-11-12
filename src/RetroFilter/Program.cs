@@ -5,6 +5,12 @@ static class Program
     [STAThread]
     static int Main(string[] args)
     {
+        // Langue de l'interface, à fixer avant tout affichage : option lang=fr ou lang=en
+        // (pour les tests), sinon le réglage mémorisé, sinon la langue de Windows.
+        string? language = args.FirstOrDefault(a => a.StartsWith("lang="))?[5..];
+        args = args.Where(a => !a.StartsWith("lang=")).ToArray();
+        L.Init(language ?? AppSettings.Load().Language);
+
         // Mode test sans interface : RetroFilter --snapshot "<partie du titre>" <dossier> [options]
         // Options : taille de pixel (nombre, 0 = 320x200), « rapide » (moyenne 2x2), « palette=N » (index dans FilterModes.AllPalettes).
         if (args.Length >= 3 && args[0] == "--snapshot")

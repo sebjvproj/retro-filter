@@ -14,31 +14,31 @@ static class FilterModes
 {
     public static readonly Machine[] Machines =
     [
-        new("CGA", "4 couleurs (1981)", "cga",
+        new("CGA", L.T("4 couleurs (1981)", "4 colors (1981)"), "cga",
         [
-            new("cyan, magenta, blanc", "palette 1 haute intensité", "pal1-haute", 0, false),
-            new("cyan, magenta, gris (sombre)", "palette 1 basse intensité", "pal1-basse", 1, false),
-            new("vert, rouge, jaune", "palette 0 haute intensité", "pal0-haute", 2, false),
-            new("vert, rouge, marron (sombre)", "palette 0 basse intensité", "pal0-basse", 3, false),
-            new("cyan, rouge, blanc", "mode 5", "mode5", 4, false),
-            new("gris", "4 niveaux de gris", "gris", 5, true),
+            new(L.T("cyan, magenta, blanc", "cyan, magenta, white"), L.T("palette 1 haute intensité", "palette 1, high intensity"), "pal1-haute", 0, false),
+            new(L.T("cyan, magenta, gris (sombre)", "cyan, magenta, gray (dark)"), L.T("palette 1 basse intensité", "palette 1, low intensity"), "pal1-basse", 1, false),
+            new(L.T("vert, rouge, jaune", "green, red, yellow"), L.T("palette 0 haute intensité", "palette 0, high intensity"), "pal0-haute", 2, false),
+            new(L.T("vert, rouge, marron (sombre)", "green, red, brown (dark)"), L.T("palette 0 basse intensité", "palette 0, low intensity"), "pal0-basse", 3, false),
+            new(L.T("cyan, rouge, blanc", "cyan, red, white"), "mode 5", "mode5", 4, false),
+            new(L.T("gris", "grayscale"), L.T("4 niveaux de gris", "4 shades of gray"), "gris", 5, true),
         ]),
         // En 320x200 et 640x200, l'EGA n'affiche que les 16 couleurs fixes du CGA.
-        new("EGA", "16 couleurs (1984)", "ega",
+        new("EGA", L.T("16 couleurs (1984)", "16 colors (1984)"), "ega",
         [
-            new("16 couleurs", "les 16 couleurs fixes de l'EGA en 320x200", "16-couleurs", 5, false),
-            new("gris", "4 niveaux de gris", "gris", 5, true),
+            new(L.T("16 couleurs", "16 colors"), L.T("les 16 couleurs fixes de l'EGA en 320x200", "the 16 fixed EGA colors at 320x200"), "16-couleurs", 5, false),
+            new(L.T("gris", "grayscale"), L.T("4 niveaux de gris", "4 shades of gray"), "gris", 5, true),
         ]),
     ];
 
     /// <summary>Nom affiché, nom de fichier, taille des gros pixels (0 = 320x200 fixe).</summary>
     public static readonly (string Name, string File, int PixelSize)[] All =
     [
-        ("moderne", "moderne", 1),
+        (L.T("moderne", "modern"), "moderne", 1),
         ("pixel 2", "p2", 2),
         ("pixel 3", "p3", 3),
         ("pixel 4", "p4", 4),
-        ("historique 320x200", "historique", 0),
+        (L.T("historique 320x200", "period 320x200"), "historique", 0),
     ];
 
     /// <summary>Toutes les palettes de toutes les cartes, à plat (pour les modes de test).</summary>

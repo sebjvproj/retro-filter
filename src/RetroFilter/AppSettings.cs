@@ -17,6 +17,9 @@ sealed class AppSettings
 
     public bool InfoBar { get; set; }
 
+    /// <summary>Langue de l'interface : « fr », « en », ou null pour suivre celle de Windows.</summary>
+    public string? Language { get; set; }
+
     /// <summary>Filtrer seulement une zone tracée à la souris, et non toute la fenêtre.</summary>
     public bool ZoneOnly { get; set; }
 
