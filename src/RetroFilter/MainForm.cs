@@ -54,6 +54,7 @@ sealed class MainForm : Form
     readonly FilterState _state = new();
     OverlayForm? _overlay;
     bool _exiting;
+    bool _selectingZone;
 
     public MainForm()
     {
@@ -159,6 +160,13 @@ sealed class MainForm : Form
         _list.DoubleClick += (_, _) => ApplyClicked();
         root.Controls.Add(_list);
         root.Controls.Add(Note("Un jeu (fenêtré ou fenêtré sans bordure), une vidéo, une page web..."));
+
+        var scope = NewRow();
+        scope.Margin = new Padding(0, S(8), 0, 0);
+        AddChoice(scope, "Toute la fenêtre", "Le filtre couvre toute la fenêtre choisie", () => !_settings.ZoneOnly, () => SetZoneOnly(false));
+        AddChoice(scope, "Seulement une zone", "Tu traces un rectangle à la souris et seul ce rectangle est filtré : une vidéo dans une page web, par exemple",
+            () => _settings.ZoneOnly, () => SetZoneOnly(true));
+        root.Controls.Add(scope);
 
         // 2. Le style
         root.Controls.Add(Heading("2. CHOISIS TON STYLE"));
@@ -326,21 +334,32 @@ sealed class MainForm : Form
     readonly List<(Button Button, Func<bool> Selected)> _swatchButtons = new();
     readonly List<FlowLayoutPanel> _paletteRows = new();
 
+    /// <summary>Ajoute à une rangée un bouton de choix, recoloré ensuite par RefreshChoices().</summary>
+    void AddChoice(FlowLayoutPanel row, string text, string tip, Func<bool> selected, Action click)
+    {
+        var button = Choice(text, tip, selected(), click);
+        _choiceButtons.Add((button, selected));
+        row.Controls.Add(button);
+    }
+
+    void SetZoneOnly(bool zoneOnly)
+    {
+        _settings.ZoneOnly = zoneOnly;
+        _settings.Save();
+        RefreshChoices();
+        if (_overlay != null) Notify("Ce choix s'appliquera au prochain filtre posé.");
+        else Notify(zoneOnly ? "Après « Poser le filtre », trace la zone à la souris sur la fenêtre." : "Le filtre couvrira toute la fenêtre.");
+    }
+
     /// <summary>Crée les boutons de carte, mode et palette (une rangée de pastilles par carte).</summary>
     void BuildChoices()
     {
-        void Add(FlowLayoutPanel row, string text, string tip, Func<bool> selected, Action click)
-        {
-            var button = Choice(text, tip, selected(), click);
-            _choiceButtons.Add((button, selected));
-            row.Controls.Add(button);
-        }
 
         for (int i = 0; i < FilterModes.Machines.Length; i++)
         {
             int index = i;
             var machine = FilterModes.Machines[i];
-            Add(_machines, machine.Name, $"{machine.Name} : {machine.Detail}", () => _state.MachineIndex == index,
+            AddChoice(_machines, machine.Name, $"{machine.Name} : {machine.Detail}", () => _state.MachineIndex == index,
                 () => ChangeState(() => _state.SetMachine(index)));
 
             // Les pastilles de cette carte ; seule la rangée de la carte courante est visible.
@@ -362,7 +381,7 @@ sealed class MainForm : Form
             int pixelSize = FilterModes.All[i].PixelSize;
             var row = pixelSize is 0 or 1 ? _modes : _pixelSizes;
             string text = pixelSize == 1 ? "Moderne" : pixelSize == 0 ? "Historique" : $"x{pixelSize}";
-            Add(row, text, ModeDetail(pixelSize), () => _state.ModeIndex == index, () => ChangeState(() => _state.SetMode(index)));
+            AddChoice(row, text, ModeDetail(pixelSize), () => _state.ModeIndex == index, () => ChangeState(() => _state.SetMode(index)));
         }
 
         // L'explication du choix courant, à droite des boutons (sous les pastilles pour la palette).
@@ -617,6 +636,7 @@ sealed class MainForm : Form
     /// <summary>Pose l'overlay sur la fenêtre donnée, ou explique pourquoi ce n'est pas possible.</summary>
     void Attach(IntPtr hwnd, bool activate)
     {
+        if (_selectingZone) return;
         var target = WindowList.GetCapturableWindows().FirstOrDefault(w => w.Handle == hwnd);
         if (target == null)
         {
@@ -631,9 +651,33 @@ sealed class MainForm : Form
         }
 
         bool exclusive = WindowList.ExclusiveFullscreenRunning;
+
+        // « Seulement une zone » : la fenêtre passe devant et on y trace le rectangle à filtrer.
+        Rectangle? zone = null;
+        if (_settings.ZoneOnly)
+        {
+            WindowList.Activate(target.Handle);
+            _selectingZone = true;
+            try
+            {
+                using var select = new ZoneSelectForm(WindowList.GetClientScreenRect(target.Handle));
+                if (select.ShowDialog() != DialogResult.OK)
+                {
+                    Notify("Zone annulée : le filtre n'est pas posé.");
+                    return;
+                }
+                zone = select.Selection;
+            }
+            finally
+            {
+                _selectingZone = false;
+            }
+            activate = true; // l'écran de sélection a pris le premier plan : on le rend à la fenêtre
+        }
+
         try
         {
-            _overlay = new OverlayForm(target.Handle, _state) { InfoVisible = _settings.InfoBar };
+            _overlay = new OverlayForm(target.Handle, _state, zone) { InfoVisible = _settings.InfoBar };
             _overlay.FormClosed += (_, _) =>
             {
                 _overlay = null;

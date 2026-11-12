@@ -17,6 +17,9 @@ sealed class AppSettings
 
     public bool InfoBar { get; set; }
 
+    /// <summary>Filtrer seulement une zone tracée à la souris, et non toute la fenêtre.</summary>
+    public bool ZoneOnly { get; set; }
+
     /// <summary>Raccourcis Ctrl+Alt+C, T, P, I actifs pendant le filtre (désactivés par défaut).</summary>
     public bool ExtraHotkeys { get; set; }
 

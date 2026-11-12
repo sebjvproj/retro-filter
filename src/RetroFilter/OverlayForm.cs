@@ -15,6 +15,8 @@ namespace RetroFilter;
 sealed class OverlayForm : Form
 {
     readonly IntPtr _game;
+    // Zone à filtrer, en pixels depuis le coin haut gauche de la zone d'affichage (null = tout).
+    readonly Rectangle? _zone;
     readonly System.Windows.Forms.Timer _follow = new() { Interval = 15 };
     ID3D11Device? _device;
     Renderer? _renderer;
@@ -38,16 +40,17 @@ sealed class OverlayForm : Form
 
     public IntPtr Game => _game;
 
-    public OverlayForm(IntPtr game, FilterState state)
+    public OverlayForm(IntPtr game, FilterState state, Rectangle? zone = null)
     {
         _game = game;
         _state = state;
+        _zone = zone;
         Text = "retro-filter";
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
         BackColor = Color.Black;
-        Bounds = WindowList.GetClientScreenRect(game);
+        Bounds = Area();
         // Direct3D dessine toute la surface : pas de peinture GDI par-dessus.
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.Opaque, true);
     }
@@ -74,7 +77,7 @@ sealed class OverlayForm : Form
         GpuPriority.Set(_device, 2);
         _renderer = new Renderer(_device, Handle, ClientSize.Width, ClientSize.Height)
         {
-            Crop = WindowList.GetClientRectInCapture(_game),
+            Crop = CropInCapture(Area()),
         };
         _renderer.Configure(_state.Apply);
         _capture = new WindowCapture(_device, _game);
@@ -91,6 +94,27 @@ sealed class OverlayForm : Form
         // tout de suite au-dessus d'elle, sans attendre le prochain passage du minuteur.
         _foregroundCallback = (_, _, _, _, _, _, _) => { if (IsHandleCreated && !IsDisposed) Follow(); };
         _foregroundHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _foregroundCallback, 0, 0, WINEVENT_OUTOFCONTEXT);
+    }
+
+    /// <summary>
+    /// Partie de l'écran que couvre l'overlay : la zone d'affichage de la fenêtre, ou seulement
+    /// la zone choisie (fixe par rapport au coin haut gauche, rognée si la fenêtre rétrécit).
+    /// </summary>
+    Rectangle Area()
+    {
+        var client = WindowList.GetClientScreenRect(_game);
+        if (_zone is not Rectangle zone) return client;
+        zone.Offset(client.Location);
+        zone.Intersect(client);
+        return zone;
+    }
+
+    /// <summary>La même partie, dans l'image capturée.</summary>
+    Rectangle CropInCapture(Rectangle area)
+    {
+        var client = WindowList.GetClientScreenRect(_game);
+        var inCapture = WindowList.GetClientRectInCapture(_game);
+        return new Rectangle(inCapture.X + area.X - client.X, inCapture.Y + area.Y - client.Y, area.Width, area.Height);
     }
 
     /// <summary>Maintient l'overlay juste au-dessus de la fenêtre filtrée dans l'ordre d'empilement.</summary>
@@ -116,13 +140,15 @@ sealed class OverlayForm : Form
         }
 
         bool visible = WindowList.IsVisible(_game) && !WindowList.IsMinimized(_game);
+        var bounds = visible ? Area() : Rectangle.Empty;
+        // Zone sortie de la fenêtre (fenêtre rétrécie) : rien à afficher.
+        if (bounds.Width <= 0 || bounds.Height <= 0) visible = false;
         if (visible)
         {
-            var bounds = WindowList.GetClientScreenRect(_game);
-            if (bounds != _bounds && bounds.Width > 0 && bounds.Height > 0)
+            if (bounds != _bounds)
             {
                 _bounds = bounds;
-                _renderer!.Crop = WindowList.GetClientRectInCapture(_game);
+                _renderer!.Crop = CropInCapture(bounds);
                 SetWindowPos(Handle, IntPtr.Zero, bounds.X, bounds.Y, bounds.Width, bounds.Height, SWP_NOACTIVATE | SWP_NOZORDER);
             }
             KeepAbove();

@@ -23,7 +23,7 @@ bin\Debug\net8.0-windows10.0.26100.0\RetroFilter.exe
 ## Utilisation
 
 1. Ouvrez ce que vous voulez filtrer. Pour un jeu, choisissez le mode **fenêtré** ou **fenêtré sans bordure** dans ses options d'affichage.
-2. Dans retro-filter, choisissez la fenêtre dans la liste.
+2. Dans retro-filter, choisissez la fenêtre dans la liste, puis **Toute la fenêtre** ou **Seulement une zone**. Avec une zone, vous tracez un rectangle à la souris après avoir cliqué sur « Poser le filtre » : pratique pour ne filtrer que la vidéo dans une page web.
 3. Choisissez le style :
    - **Carte** : CGA (4 couleurs, 1981) ou EGA (16 couleurs, 1984).
    - **Mode** : Moderne (tramage fin, à la résolution de l'écran) ou Historique (320×200, gros pixels comme à l'époque).

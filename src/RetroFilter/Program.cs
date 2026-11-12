@@ -21,8 +21,17 @@ static class Program
             return Fps(args[1], int.Parse(args[2]), args.Skip(3).Contains("brut"), args.Skip(3).Contains("plafond"));
 
         // Test de l'overlay : le pose 3 s sur la fenêtre, puis enregistre ce qui est à l'écran à cet endroit.
-        if (args.Length == 3 && args[0] == "--overlay")
-            return OverlayTest(args[1], args[2]);
+        // Option : zone=x,y,largeur,hauteur pour ne filtrer qu'une partie de la zone d'affichage.
+        if (args.Length is 3 or 4 && args[0] == "--overlay")
+        {
+            Rectangle? zone = null;
+            if (args.Length == 4 && args[3].StartsWith("zone="))
+            {
+                int[] v = args[3][5..].Split(',').Select(int.Parse).ToArray();
+                zone = new Rectangle(v[0], v[1], v[2], v[3]);
+            }
+            return OverlayTest(args[1], args[2], zone);
+        }
 
         // Compare dither.hlsl à la v2 de référence (cga-v2.hlsl) : RetroFilter --verify "<partie du titre>"
         if (args.Length == 2 && args[0] == "--verify")
@@ -276,7 +285,7 @@ static class Program
     ///    l'écran à cet endroit) et overlay.png (l'image que l'overlay croit afficher), et
     ///    vérifie que le clic au centre traverse l'overlay.
     /// </summary>
-    static int OverlayTest(string titlePart, string directory)
+    static int OverlayTest(string titlePart, string directory, Rectangle? zone)
     {
         var window = WindowList.GetCapturableWindows()
             .FirstOrDefault(w => w.Title.Contains(titlePart, StringComparison.OrdinalIgnoreCase));
@@ -288,9 +297,9 @@ static class Program
 
         Directory.CreateDirectory(directory);
         ApplicationConfiguration.Initialize();
-        var overlay = new OverlayForm(window.Handle, new FilterState())
+        var overlay = new OverlayForm(window.Handle, new FilterState(), zone)
         {
-            InfoVisible = true,
+            InfoVisible = zone == null, // sans la barre, l'écran doit être identique à l'image filtrée
             Hint = "Ctrl+Alt + R retirer le filtre, S image PNG",
         };
         // Témoin : une fenêtre ordinaire qui recouvre le coin haut gauche de la fenêtre filtrée.
