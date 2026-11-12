@@ -5,9 +5,37 @@ using Vortice.DXGI;
 
 namespace RetroFilter;
 
-/// <summary>Enregistre une texture BGRA du GPU en fichier PNG.</summary>
+/// <summary>Enregistre une texture BGRA du GPU en fichier PNG, ou charge une image en texture.</summary>
 static class TextureSaver
 {
+    /// <summary>Charge une image (PNG, JPEG...) dans une texture BGRA utilisable comme source du filtre.</summary>
+    public static ID3D11Texture2D LoadImage(ID3D11Device device, string path, out int width, out int height)
+    {
+        using var original = new Bitmap(path);
+        width = original.Width;
+        height = original.Height;
+        using var bitmap = original.Clone(new Rectangle(0, 0, width, height), PixelFormat.Format32bppArgb);
+        var data = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            return device.CreateTexture2D(new Texture2DDescription
+            {
+                Width = (uint)width,
+                Height = (uint)height,
+                MipLevels = 1,
+                ArraySize = 1,
+                Format = Format.B8G8R8A8_UNorm,
+                SampleDescription = new SampleDescription(1, 0),
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.ShaderResource,
+            }, [new SubresourceData(data.Scan0, (uint)data.Stride)]);
+        }
+        finally
+        {
+            bitmap.UnlockBits(data);
+        }
+    }
+
     /// <summary>Lit les pixels BGRA d'une texture (4 octets par pixel, lignes à la suite).</summary>
     public static byte[] ReadPixels(ID3D11Device device, ID3D11Texture2D texture, int width, int height)
     {

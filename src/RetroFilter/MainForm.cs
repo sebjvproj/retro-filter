@@ -55,6 +55,7 @@ sealed class MainForm : Form
     OverlayForm? _overlay;
     bool _exiting;
     bool _selectingZone;
+    bool _demoList;
 
     public MainForm()
     {
@@ -413,6 +414,7 @@ sealed class MainForm : Form
 
     void RefreshList()
     {
+        if (_demoList) return;
         var windows = WindowList.GetCapturableWindows();
         var current = _list.Items.Cast<WindowInfo>().ToList();
         if (windows.SequenceEqual(current)) return;
@@ -789,11 +791,29 @@ sealed class MainForm : Form
     }
 
     /// <summary>Pour les tests : ferme le menu de la zone de notification et déplie ou replie « Avancé ».</summary>
-    internal void PrepareForTest(bool advanced)
+    internal void PrepareForTest(bool advanced, bool demo = false)
     {
         _trayMenu.Close();
         SetAdvancedVisible(advanced);
         RefreshList();
+        if (!demo) return;
+
+        // Liste fictive : les captures publiées ne doivent pas montrer les fenêtres de l'utilisateur.
+        _demoList = true;
+        _settings.ZoneOnly = false; // affichage seulement : rien n'est enregistré
+        RefreshChoices();
+        _list.Items.Clear();
+        (string Title, string Process)[] windows =
+        [
+            ("Mon jeu préféré", "jeu.exe"),
+            ("Une vidéo en ligne - Navigateur", "navigateur.exe"),
+            ("Film de vacances - Lecteur vidéo", "lecteur.exe"),
+            ("Photos de famille", "photos.exe"),
+            ("Bloc-notes", "notes.exe"),
+        ];
+        for (int i = 0; i < windows.Length; i++)
+            _list.Items.Add(new WindowInfo(new IntPtr(-100 - i), windows[i].Title, windows[i].Process));
+        _list.SelectedIndex = 0;
     }
 
     void ShowMainWindow()

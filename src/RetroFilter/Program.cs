@@ -15,6 +15,17 @@ static class Program
             return Snapshot(args[1], args[2], pixelSize, options.Contains("rapide"), palette);
         }
 
+        // Filtre un fichier image, sans fenêtre : RetroFilter --image <fichier> <dossier> [options]
+        // Mêmes options que --snapshot. Enregistre <carte>-<mode>_<palette>.png dans le dossier.
+        // Sert aux tests reproductibles et aux images de démonstration.
+        if (args.Length >= 3 && args[0] == "--image")
+        {
+            var options = args.Skip(3).ToList();
+            int pixelSize = options.Where(o => o.All(char.IsDigit)).Select(int.Parse).DefaultIfEmpty(1).First();
+            int palette = options.Where(o => o.StartsWith("palette=")).Select(o => int.Parse(o[8..])).DefaultIfEmpty(0).First();
+            return ImageFile(args[1], args[2], pixelSize, palette);
+        }
+
         // Mesure du débit de capture avec filtre : RetroFilter --fps "<partie du titre>" <priorité 0 normale, 1 haute, 2 temps réel>
         // Options à la fin : « brut » mesure la capture seule, sans filtre ; « plafond » garde la limite de Windows.
         if (args.Length >= 3 && args[0] == "--fps")
@@ -38,8 +49,9 @@ static class Program
             return Verify(args[1]);
 
         // Test de l'interface : RetroFilter --ui-test <dossier> (menu de la zone de notification, icône)
-        if (args.Length == 2 && args[0] == "--ui-test")
-            return UiTest(args[1]);
+        // Option « demo » : liste de fenêtres fictives, pour des captures publiables.
+        if (args.Length is 2 or 3 && args[0] == "--ui-test")
+            return UiTest(args[1], args.Length == 3 && args[2] == "demo");
 
         // Mesure du temps GPU de la passe CGA : RetroFilter --bench "<partie du titre>"
         if (args.Length == 2 && args[0] == "--bench")
@@ -103,6 +115,25 @@ static class Program
             Console.Error.WriteLine(error);
             return 4;
         }
+        return 0;
+    }
+
+    /// <summary>Filtre un fichier image et enregistre le résultat, agrandi à la taille de l'image.</summary>
+    static int ImageFile(string file, string directory, int pixelSize, int palette)
+    {
+        Directory.CreateDirectory(directory);
+        using var device = GpuDevice.Create();
+        using var filter = new CgaFilter(device);
+        var (machine, choice) = FilterModes.AllPalettes[palette];
+        FilterModes.ApplyPalette(filter.Settings, choice);
+        filter.Settings.PixelSize = pixelSize;
+        using (var texture = TextureSaver.LoadImage(device, file, out int width, out int height))
+            filter.SetSource(texture, width, height);
+        filter.Apply();
+        string mode = FilterModes.All.First(m => m.PixelSize == pixelSize).File;
+        string output = Path.Combine(directory, $"{machine.File}-{mode}_{choice.File}.png");
+        filter.SaveOutput(output);
+        Console.WriteLine(output);
         return 0;
     }
 
@@ -382,7 +413,7 @@ static class Program
     /// chaque sous-menu (carte, mode, palette) déplié tour à tour, puis la fenêtre principale
     /// (fenetre.png, et fenetre-avance.png avec « Avancé » déplié).
     /// </summary>
-    static int UiTest(string directory)
+    static int UiTest(string directory, bool demo)
     {
         Directory.CreateDirectory(directory);
         ApplicationConfiguration.Initialize();
@@ -427,7 +458,7 @@ static class Program
                     form.Exit();
                     return;
                 }
-                form.PrepareForTest(advanced: extra == 1);
+                form.PrepareForTest(advanced: extra == 1, demo);
                 area = Rectangle.Empty;
                 step++;
                 return;
