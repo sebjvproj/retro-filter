@@ -1,30 +1,33 @@
 namespace RetroFilter;
 
-/// <summary>Une palette proposée : index de palette du shader (voir DitherTable) et correspondance par luminosité.</summary>
-sealed record PaletteChoice(string Name, string File, int Palette, bool MatchLuminance);
+/// <summary>
+/// Une palette proposée : nom parlant (ses couleurs), nom historique, nom de fichier,
+/// index de palette du shader (voir DitherTable) et correspondance par luminosité.
+/// </summary>
+sealed record PaletteChoice(string Name, string Detail, string File, int Palette, bool MatchLuminance);
 
-/// <summary>Une carte graphique émulée et ses palettes.</summary>
-sealed record Machine(string Name, string File, PaletteChoice[] Palettes);
+/// <summary>Une carte graphique émulée, sa description courte et ses palettes.</summary>
+sealed record Machine(string Name, string Detail, string File, PaletteChoice[] Palettes);
 
 /// <summary>Cartes, modes et palettes proposés à l'utilisateur, dans l'ordre où on les fait défiler.</summary>
 static class FilterModes
 {
     public static readonly Machine[] Machines =
     [
-        new("CGA", "cga",
+        new("CGA", "4 couleurs (1981)", "cga",
         [
-            new("palette 1 haute intensité", "pal1-haute", 0, false),
-            new("palette 1 basse intensité", "pal1-basse", 1, false),
-            new("palette 0 haute intensité", "pal0-haute", 2, false),
-            new("palette 0 basse intensité", "pal0-basse", 3, false),
-            new("mode 5 (cyan, rouge, blanc)", "mode5", 4, false),
-            new("gris", "gris", 5, true),
+            new("cyan, magenta, blanc", "palette 1 haute intensité", "pal1-haute", 0, false),
+            new("cyan, magenta, gris (sombre)", "palette 1 basse intensité", "pal1-basse", 1, false),
+            new("vert, rouge, jaune", "palette 0 haute intensité", "pal0-haute", 2, false),
+            new("vert, rouge, marron (sombre)", "palette 0 basse intensité", "pal0-basse", 3, false),
+            new("cyan, rouge, blanc", "mode 5", "mode5", 4, false),
+            new("gris", "4 niveaux de gris", "gris", 5, true),
         ]),
         // En 320x200 et 640x200, l'EGA n'affiche que les 16 couleurs fixes du CGA.
-        new("EGA", "ega",
+        new("EGA", "16 couleurs (1984)", "ega",
         [
-            new("16 couleurs", "16-couleurs", 5, false),
-            new("gris", "gris", 5, true),
+            new("16 couleurs", "les 16 couleurs fixes de l'EGA en 320x200", "16-couleurs", 5, false),
+            new("gris", "4 niveaux de gris", "gris", 5, true),
         ]),
     ];
 

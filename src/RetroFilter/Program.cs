@@ -37,7 +37,7 @@ static class Program
             return Bench(args[1]);
 
         ApplicationConfiguration.Initialize();
-        Application.Run(new WindowPickerForm());
+        Application.Run(new MainForm());
         return 0;
     }
 
@@ -268,9 +268,13 @@ static class Program
     }
 
     /// <summary>
-    /// Pose l'overlay sur la fenêtre (visible même sans le focus), attend 3 s puis enregistre
-    /// dans le dossier : ecran.png (ce que montre l'écran à l'emplacement du jeu) et overlay.png
-    /// (l'image que l'overlay croit afficher).
+    /// Pose l'overlay sur la fenêtre, puis vérifie qu'il lui reste « collé » :
+    /// 1) une autre fenêtre (un témoin créé par le test) est au premier plan : l'overlay doit
+    ///    rester visible, juste au-dessus de la fenêtre filtrée, sans être « toujours au premier
+    ///    plan », et le témoin doit passer devant lui ;
+    /// 2) la fenêtre filtrée repasse au premier plan : enregistre ecran.png (ce que montre
+    ///    l'écran à cet endroit) et overlay.png (l'image que l'overlay croit afficher), et
+    ///    vérifie que le clic au centre traverse l'overlay.
     /// </summary>
     static int OverlayTest(string titlePart, string directory)
     {
@@ -286,15 +290,53 @@ static class Program
         ApplicationConfiguration.Initialize();
         var overlay = new OverlayForm(window.Handle, new FilterState())
         {
-            AlwaysVisible = true,
             InfoVisible = true,
-            Hint = "Ctrl+Alt + C carte, T mode, P palette, S image PNG, I infos, R retirer le filtre",
+            Hint = "Ctrl+Alt + R retirer le filtre, S image PNG",
         };
-        var timer = new System.Windows.Forms.Timer { Interval = 3000 };
+        // Témoin : une fenêtre ordinaire qui recouvre le coin haut gauche de la fenêtre filtrée.
+        var witness = new Form
+        {
+            Text = "témoin retro-filter",
+            StartPosition = FormStartPosition.Manual,
+            BackColor = Color.Yellow,
+        };
+        int step = 0;
+        var timer = new System.Windows.Forms.Timer { Interval = 1500 };
         timer.Tick += (_, _) =>
         {
-            timer.Stop();
-            var area = overlay.Bounds;
+            step++;
+            if (step == 1)
+            {
+                var client = WindowList.GetClientScreenRect(window.Handle);
+                witness.Bounds = new Rectangle(client.X + 40, client.Y + 40, 300, 200);
+                witness.Show();
+                ForceForeground(witness.Handle);
+                return;
+            }
+            if (step == 2)
+            {
+                bool visible = WindowList.IsVisible(overlay.Handle);
+                bool above = WindowList.IsJustAbove(window.Handle, overlay.Handle, out _);
+                bool topmost = WindowList.IsTopmost(overlay.Handle);
+                var inWitness = new Point(witness.Bounds.X + 150, witness.Bounds.Y + 120);
+                using (var grab = ScreenGrab(new Rectangle(inWitness, new Size(1, 1))))
+                {
+                    var pixel = grab.GetPixel(0, 0);
+                    bool witnessInFront = pixel.R > 200 && pixel.G > 200 && pixel.B < 80;
+                    Console.WriteLine($"fenêtre filtrée inactive : overlay visible = {visible}, juste au-dessus d'elle = {above}, "
+                        + $"toujours au premier plan = {topmost}, autre fenêtre devant l'overlay = {witnessInFront}");
+                    Console.WriteLine(visible && above && !topmost && witnessInFront ? "collage : OK" : "collage : ÉCHEC");
+                    if (!above) Console.WriteLine($"overlay 0x{overlay.Handle:X}, fenêtre filtrée 0x{window.Handle:X}, au-dessus d'elle :\n{WindowList.DescribeAbove(window.Handle, 8)}");
+                }
+                witness.Close();
+                ForceForeground(window.Handle);
+                return;
+            }
+            {
+                timer.Stop();
+                Console.WriteLine($"fenêtre filtrée au premier plan = {WindowList.Foreground == window.Handle}, "
+                    + $"overlay juste au-dessus d'elle = {WindowList.IsJustAbove(window.Handle, overlay.Handle, out _)}");
+                var area = overlay.Bounds;
             using (var screen = ScreenGrab(area))
                 screen.Save(Path.Combine(directory, "ecran.png"));
             string? saved = overlay.SaveSnapshot();
@@ -308,6 +350,7 @@ static class Program
                 : "clic au centre : traverse l'overlay (le jeu est recouvert à cet endroit par une autre fenêtre)");
             Console.WriteLine(WindowList.DescribeGeometry(window.Handle));
             overlay.Close();
+            }
         };
         overlay.Shown += (_, _) => timer.Start();
         Application.Run(overlay);
@@ -315,8 +358,20 @@ static class Program
     }
 
     /// <summary>
-    /// Enregistre l'icône (agrandie) et des captures du menu de la zone de notification,
-    /// avec chaque sous-menu (carte, mode, palette) déplié tour à tour.
+    /// Pour les tests : met une fenêtre au premier plan même si Windows le refuserait à un
+    /// programme lancé en arrière-plan (un appui bref sur Alt lève cette protection).
+    /// </summary>
+    static void ForceForeground(IntPtr hwnd)
+    {
+        keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
+        keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        WindowList.Activate(hwnd);
+    }
+
+    /// <summary>
+    /// Enregistre l'icône (agrandie), des captures du menu de la zone de notification avec
+    /// chaque sous-menu (carte, mode, palette) déplié tour à tour, puis la fenêtre principale
+    /// (fenetre.png, et fenetre-avance.png avec « Avancé » déplié).
     /// </summary>
     static int UiTest(string directory)
     {
@@ -335,22 +390,37 @@ static class Program
             big.Save(Path.Combine(directory, "icone.png"));
         }
 
-        var form = new WindowPickerForm();
+        var form = new MainForm();
         int[] submenus = [2, 3, 4];
         int step = 0;
         var timer = new System.Windows.Forms.Timer { Interval = 700 };
         Rectangle area = Rectangle.Empty;
         timer.Tick += (_, _) =>
         {
-            if (step > 0)
+            if (step > 0 && !area.IsEmpty)
             {
                 using var shot = ScreenGrab(area);
                 shot.Save(Path.Combine(directory, $"menu{step}.png"));
             }
-            if (step == submenus.Length)
+            if (step >= submenus.Length)
             {
-                timer.Stop();
-                form.Exit();
+                // Après les menus : la fenêtre principale, sans puis avec « Avancé ».
+                int extra = step - submenus.Length;
+                if (extra > 0)
+                {
+                    using var window = new Bitmap(form.Width, form.Height);
+                    form.DrawToBitmap(window, new Rectangle(Point.Empty, form.Size));
+                    window.Save(Path.Combine(directory, extra == 1 ? "fenetre.png" : "fenetre-avance.png"));
+                }
+                if (extra == 2)
+                {
+                    timer.Stop();
+                    form.Exit();
+                    return;
+                }
+                form.PrepareForTest(advanced: extra == 1);
+                area = Rectangle.Empty;
+                step++;
                 return;
             }
             area = form.ShowTrayMenuForTest(new Point(200, 200), submenus[step]);
@@ -376,6 +446,10 @@ static class Program
     }
 
     const uint GA_ROOT = 2;
+    const byte VK_MENU = 0x12;
+    const uint KEYEVENTF_KEYUP = 0x2;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
 
     [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point point);
     [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);

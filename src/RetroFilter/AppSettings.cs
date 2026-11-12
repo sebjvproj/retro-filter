@@ -17,6 +17,9 @@ sealed class AppSettings
 
     public bool InfoBar { get; set; }
 
+    /// <summary>Raccourcis Ctrl+Alt+C, T, P, I actifs pendant le filtre (désactivés par défaut).</summary>
+    public bool ExtraHotkeys { get; set; }
+
     /// <summary>L'explication « l'app continue dans la zone de notification » a déjà été montrée.</summary>
     public bool TrayHintShown { get; set; }
 

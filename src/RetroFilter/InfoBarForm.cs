@@ -15,9 +15,12 @@ sealed class InfoBarForm : Form
 
     string _main = "";
     string _hint = "";
+    readonly bool _topmost;
 
-    public InfoBarForm()
+    /// <param name="topmost">Toujours au premier plan (messages isolés) ; sinon elle suit sa fenêtre propriétaire.</param>
+    public InfoBarForm(bool topmost)
     {
+        _topmost = topmost;
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
@@ -32,7 +35,7 @@ sealed class InfoBarForm : Form
         get
         {
             var cp = base.CreateParams;
-            cp.ExStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST;
+            cp.ExStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
             return cp;
         }
     }
@@ -71,7 +74,8 @@ sealed class InfoBarForm : Form
     {
         if (visible)
         {
-            SetWindowPos(Handle, HWND_TOPMOST, location.X, location.Y, 0, 0, SWP_NOACTIVATE | SWP_NOSIZE);
+            if (_topmost) SetWindowPos(Handle, HWND_TOPMOST, location.X, location.Y, 0, 0, SWP_NOACTIVATE | SWP_NOSIZE);
+            else SetWindowPos(Handle, IntPtr.Zero, location.X, location.Y, 0, 0, SWP_NOACTIVATE | SWP_NOSIZE | SWP_NOZORDER);
             ShowWindow(Handle, SW_SHOWNOACTIVATE);
         }
         else
@@ -82,11 +86,11 @@ sealed class InfoBarForm : Form
 
     const int WS_EX_TRANSPARENT = 0x00000020;
     const int WS_EX_TOOLWINDOW = 0x00000080;
-    const int WS_EX_TOPMOST = 0x00000008;
     const int WS_EX_LAYERED = 0x00080000;
     const int WS_EX_NOACTIVATE = 0x08000000;
     const uint LWA_ALPHA = 0x2;
     const uint SWP_NOSIZE = 0x0001;
+    const uint SWP_NOZORDER = 0x0004;
     const uint SWP_NOACTIVATE = 0x0010;
     const int SW_HIDE = 0;
     const int SW_SHOWNOACTIVATE = 4;

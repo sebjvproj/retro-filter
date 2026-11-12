@@ -4,9 +4,13 @@ using Vortice.Direct3D11;
 namespace RetroFilter;
 
 /// <summary>
-/// Image filtrée posée exactement sur la zone d'affichage du jeu. Transparente aux clics
-/// et jamais active : le jeu garde le clavier et la souris. Cachée quand le jeu n'est pas
-/// au premier plan (Alt+Tab vers une autre application), fermée quand le jeu se ferme.
+/// Image filtrée posée exactement sur la zone d'affichage de la fenêtre filtrée (jeu, vidéo,
+/// navigateur...). Transparente aux clics et jamais active : la fenêtre garde le clavier et
+/// la souris. « Collée » à la fenêtre : maintenue juste au-dessus d'elle dans l'ordre
+/// d'empilement, donc visible même quand elle n'est pas active, et recouverte comme elle par
+/// les autres fenêtres. Cachée quand la fenêtre est réduite, fermée quand elle se ferme.
+/// (On ne déclare pas l'overlay « possédé » par la fenêtre : entre deux applications, Windows
+/// lierait leurs files d'entrée clavier et souris, et un blocage de l'une gèlerait l'autre.)
 /// </summary>
 sealed class OverlayForm : Form
 {
@@ -15,7 +19,9 @@ sealed class OverlayForm : Form
     ID3D11Device? _device;
     Renderer? _renderer;
     WindowCapture? _capture;
-    readonly InfoBarForm _bar = new();
+    readonly InfoBarForm _bar = new(topmost: false);
+    WinEventProc? _foregroundCallback;
+    IntPtr _foregroundHook;
     readonly System.Diagnostics.Stopwatch _statsClock = System.Diagnostics.Stopwatch.StartNew();
     Rectangle _bounds;
     bool _shown = true; // Show() rend la fenêtre visible ; Follow() la cache ensuite si besoin.
@@ -23,9 +29,6 @@ sealed class OverlayForm : Form
     string _stats = "";
     string? _message;
     DateTime _messageUntil;
-
-    /// <summary>Pour les tests : reste affiché même si le jeu n'est pas au premier plan.</summary>
-    public bool AlwaysVisible { get; init; }
 
     /// <summary>Barre d'informations affichée en permanence (sinon seulement pour les messages brefs).</summary>
     public bool InfoVisible { get; set; }
@@ -57,7 +60,7 @@ sealed class OverlayForm : Form
         {
             var cp = base.CreateParams;
             // Fenêtre « calque » + transparente : les clics passent au travers, jusqu'au jeu.
-            cp.ExStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST;
+            cp.ExStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
             return cp;
         }
     }
@@ -83,6 +86,24 @@ sealed class OverlayForm : Form
 
         _follow.Tick += (_, _) => Follow();
         _follow.Start();
+
+        // Quand une fenêtre passe au premier plan (la nôtre en particulier), on se replace
+        // tout de suite au-dessus d'elle, sans attendre le prochain passage du minuteur.
+        _foregroundCallback = (_, _, _, _, _, _, _) => { if (IsHandleCreated && !IsDisposed) Follow(); };
+        _foregroundHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _foregroundCallback, 0, 0, WINEVENT_OUTOFCONTEXT);
+    }
+
+    /// <summary>Maintient l'overlay juste au-dessus de la fenêtre filtrée dans l'ordre d'empilement.</summary>
+    void KeepAbove()
+    {
+        // Une fenêtre « toujours au premier plan » exige un overlay qui l'est aussi.
+        bool gameTopmost = WindowList.IsTopmost(_game);
+        if (gameTopmost != WindowList.IsTopmost(Handle))
+            SetWindowPos(Handle, gameTopmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+        if (WindowList.IsJustAbove(_game, Handle, out IntPtr above)) return;
+        IntPtr insertAfter = above != IntPtr.Zero ? above : gameTopmost ? HWND_TOPMOST : HWND_TOP;
+        SetWindowPos(Handle, insertAfter, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
     /// <summary>Suit la position du jeu et décide si l'overlay doit être visible.</summary>
@@ -94,8 +115,7 @@ sealed class OverlayForm : Form
             return;
         }
 
-        var foreground = WindowList.Foreground;
-        bool visible = !WindowList.IsMinimized(_game) && (AlwaysVisible || foreground == _game || foreground == Handle);
+        bool visible = WindowList.IsVisible(_game) && !WindowList.IsMinimized(_game);
         if (visible)
         {
             var bounds = WindowList.GetClientScreenRect(_game);
@@ -103,8 +123,9 @@ sealed class OverlayForm : Form
             {
                 _bounds = bounds;
                 _renderer!.Crop = WindowList.GetClientRectInCapture(_game);
-                SetWindowPos(Handle, HWND_TOPMOST, bounds.X, bounds.Y, bounds.Width, bounds.Height, SWP_NOACTIVATE);
+                SetWindowPos(Handle, IntPtr.Zero, bounds.X, bounds.Y, bounds.Width, bounds.Height, SWP_NOACTIVATE | SWP_NOZORDER);
             }
+            KeepAbove();
         }
         if (visible != _shown)
         {
@@ -160,6 +181,7 @@ sealed class OverlayForm : Form
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
+        if (_foregroundHook != IntPtr.Zero) UnhookWinEvent(_foregroundHook);
         _follow.Dispose();
         _bar.Dispose();
         _capture?.Dispose();
@@ -170,14 +192,25 @@ sealed class OverlayForm : Form
 
     const int WS_EX_TRANSPARENT = 0x00000020;
     const int WS_EX_TOOLWINDOW = 0x00000080;
-    const int WS_EX_TOPMOST = 0x00000008;
     const int WS_EX_LAYERED = 0x00080000;
     const int WS_EX_NOACTIVATE = 0x08000000;
     const uint LWA_ALPHA = 0x2;
+    const uint SWP_NOSIZE = 0x0001;
+    const uint SWP_NOMOVE = 0x0002;
+    const uint SWP_NOZORDER = 0x0004;
     const uint SWP_NOACTIVATE = 0x0010;
     const int SW_HIDE = 0;
     const int SW_SHOWNOACTIVATE = 4;
+    const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+    const uint WINEVENT_OUTOFCONTEXT = 0;
+    static readonly IntPtr HWND_TOP = IntPtr.Zero;
     static readonly IntPtr HWND_TOPMOST = new(-1);
+    static readonly IntPtr HWND_NOTOPMOST = new(-2);
+
+    delegate void WinEventProc(IntPtr hook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint thread, uint time);
+
+    [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr module, WinEventProc callback, uint process, uint thread, uint flags);
+    [DllImport("user32.dll")] static extern bool UnhookWinEvent(IntPtr hook);
 
     [DllImport("user32.dll")] static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint colorKey, byte alpha, uint flags);
     [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);

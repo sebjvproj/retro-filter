@@ -12,6 +12,12 @@ static class RetroStyle
     public static readonly Color Gray = Color.FromArgb(170, 170, 170);
     public static readonly Color DarkGray = Color.FromArgb(85, 85, 85);
 
+    // Police à chasse fixe, pour rappeler les écrans de l'époque.
+    public static readonly Font TextFont = new("Consolas", 10f);
+    public static readonly Font BoldFont = new("Consolas", 10f, FontStyle.Bold);
+    public static readonly Font BigFont = new("Consolas", 14f, FontStyle.Bold);
+    public static readonly Font TitleFont = new("Consolas", 20f, FontStyle.Bold);
+
     // Moniteur 16x16 : écran tramé cyan et magenta (palette 1 haute intensité).
     static readonly string[] IconPixels =
     [
@@ -60,17 +66,17 @@ static class RetroStyle
         return icon;
     }
 
-    /// <summary>Pastille 32x16 montrant les couleurs d'une palette (4 cases, ou 8x2 pour 16 couleurs).</summary>
-    public static Bitmap CreateSwatch(PaletteChoice palette)
+    /// <summary>Pastille 32x16 (fois l'échelle) montrant les couleurs d'une palette (4 cases, ou 8x2 pour 16 couleurs).</summary>
+    public static Bitmap CreateSwatch(PaletteChoice palette, int scale = 1)
     {
         var settings = new CgaSettings();
         FilterModes.ApplyPalette(settings, palette);
         var colors = DitherTable.Colors(settings);
-        var bitmap = new Bitmap(32, 16);
+        var bitmap = new Bitmap(32 * scale, 16 * scale);
         using var g = Graphics.FromImage(bitmap);
         int columns = colors.Length <= 4 ? colors.Length : 8;
         int rows = (colors.Length + columns - 1) / columns;
-        int w = 32 / columns, h = 16 / rows;
+        int w = 32 * scale / columns, h = 16 * scale / rows;
         for (int i = 0; i < colors.Length; i++)
         {
             var c = colors[i];
@@ -78,7 +84,7 @@ static class RetroStyle
             g.FillRectangle(brush, i % columns * w, i / columns * h, w, h);
         }
         using var border = new Pen(DarkGray);
-        g.DrawRectangle(border, 0, 0, 31, 15);
+        g.DrawRectangle(border, 0, 0, 32 * scale - 1, 16 * scale - 1);
         return bitmap;
     }
 
