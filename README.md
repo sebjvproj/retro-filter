@@ -1,91 +1,93 @@
 # retro-filter
 
-Shader qui transforme n'importe quel jeu PC en rendu CGA : gros pixels, palette 4 couleurs, tramage. Deux philosophies :
+Une app Windows qui affiche n'importe quelle fenêtre (un jeu, une vidéo, une page web) avec les couleurs des PC des années 80 : palette CGA à 4 couleurs ou EGA à 16 couleurs, avec un tramage fin calculé sur la carte graphique.
 
-- **Moderne** : l'esprit CGA avec un tramage fin qui se fond en dégradés.
-- **Authentique** : les contraintes réelles d'une carte CGA de 1984, moche et fidèle.
+Le filtre se pose par-dessus la fenêtre, sans rien modifier ni injecter dans le programme filtré. La fenêtre garde le clavier et la souris : on joue ou on regarde normalement.
 
-Format RetroArch `.slang`, utilisable dans [ShaderGlass](https://github.com/mausimus/ShaderGlass) (overlay Windows, sans injection dans le jeu).
+Le projet est un prototype qui fonctionne, encore en cours de développement.
 
-## Utilisation avec ShaderGlass
+## Ce qu'il faut
 
-1. Installer ShaderGlass (GitHub ou Steam).
-2. Lancer le jeu en mode **fenêtré** ou **fenêtré sans bordure**.
-3. Dans ShaderGlass, choisir la fenêtre du jeu comme entrée.
-4. Menu *Shader* : importer un shader personnalisé et choisir un preset dans `shaders/`.
-5. Régler la taille de pixel d'entrée de ShaderGlass sur **1x** (le shader pixelise déjà lui-même), puis passer en plein écran.
+- Windows 10 version 2004 ou plus récent. Windows 11 24H2 est conseillé : avant cette version, Windows limite la capture à environ 60 images par seconde.
+- Une carte graphique compatible Direct3D 11.
+- Le [kit .NET 8 SDK](https://dotnet.microsoft.com/download) pour compiler (`winget install Microsoft.DotNet.SDK.8`).
 
-Les paramètres se règlent en direct dans la fenêtre des paramètres de ShaderGlass.
+## Compiler et lancer
 
-## Presets
-
-| Fichier | Résolution | Pour quoi |
-|---|---|---|
-| `cga-moderne.slangp` | 320×200 | Le rendu recommandé : le tramage le plus fin. Basé sur la v2 (deux passes), sans contours ni anti-scintillement |
-| `cga-lisible.slangp` | 320×216 | Pour les jeux où l'on ne distingue plus rien : contours, motifs plus gros, moins de bruit, plus de relief, anti-scintillement |
-| `cga-authentique.slangp` | 320×200 | Fidèle à l'époque : format 4:3 avec bandes noires, tramage en damier uniquement, couleurs brutes |
-| `cga.slangp` | 320×200 | Base neutre, tous les réglages à leur valeur par défaut |
-| `cga-640x200.slangp` | 640×200 | Mode haute résolution CGA, plus lisible pour les textes |
-| `cga-v2.slangp` | 320×200 | Deuxième version (deux passes, tramage de Yliluoma), identique au preset moderne |
-| `cga-v1.slangp` | réglable | Première version (une seule passe, tramage simple). Seule à proposer la résolution en curseurs (« Largeur / Hauteur virtuelle », jusqu'à 1280×800) |
-
-## Paramètres
-
-| Paramètre | Défaut | Rôle |
-|---|---|---|
-| Palette | 0 | voir tableau ci-dessous |
-| Couleur de fond | 0 | Remplace le noir par n'importe laquelle des 16 couleurs CGA, comme sur une vraie carte (bleu foncé = 1). Sans effet en palette 16 couleurs |
-| Couleur ↔ luminosité | 0 | 0 = respecte les teintes, 1 = ne regarde que la clarté. Entre 0,3 et 0,5, on garde le relief sans perdre les couleurs |
-| Niveaux de tramage | 16 | 1 = aucun (aplats), 2 = damier seul, 4 ou 8 = motifs rétro, 16 = dégradés les plus fins |
-| Douceur du tramage | 0.1 | Plus haut = moins de mélanges de couleurs éloignées (moins de bruit, plus d'aplats) |
-| Contours | 0 | Trace un trait de la couleur la plus sombre du côté sombre des bords. Rend personnages et objets plus lisibles |
-| Stabilité | 0 | Anti-scintillement : un gros pixel qui change très peu garde sa couleur. 0,03 supprime le scintillement dû au bruit d'image |
-| Format 4:3 | 0 | Bandes noires sur les côtés, comme un moniteur d'époque |
-| Luminosité, contraste, saturation | 0 / 1 / 1 | Ajustement avant réduction de palette |
-
-| Palette | Couleurs |
-|---|---|
-| 0 | fond, cyan, magenta, blanc (la palette CGA « classique ») |
-| 1 | même palette, basse intensité |
-| 2 | fond, vert, rouge, jaune |
-| 3 | même palette, basse intensité (vert, rouge, marron) |
-| 4 | fond, cyan, rouge, blanc (mode 5) |
-| 5 | les 16 couleurs CGA |
-| 6 | fond et 3 gris |
-| 7 | fond et blanc (mode 640×200, 2 couleurs) |
-
-## Conseils de réglage
-
-- **Jeu sombre** : monter la luminosité (+0,1 à +0,2), ou choisir un fond bleu foncé (couleur de fond = 1) pour que les zones noires gardent une teinte.
-- **Palette cyan/magenta trop bruitée** : monter la douceur du tramage vers 0,2 et le curseur couleur ↔ luminosité vers 0,35 (c'est ce que fait le preset lisible).
-- **Juger un réglage** : toujours regarder en plein écran. En vignette réduite, le tramage fin ressemble à du bruit alors qu'il se fond en dégradés à taille réelle.
-- **Vert/rouge/jaune** : une douceur trop haute transforme les surfaces en aplats rouges, rester vers 0,1.
-- **Contours** : très efficaces sur les palettes contrastées (vert/rouge/jaune, 16 couleurs). Sur cyan/magenta, le noir étant déjà partout, l'effet est plus discret.
-- **Autre résolution** : copier un preset et changer `scale_x0` / `scale_y0`. Pour des pixels réguliers, choisir une division exacte de l'écran (1920×1080 : 320×216, 384×216, 480×270).
-- Pour un effet écran cathodique, empiler un shader CRT de la bibliothèque de ShaderGlass après celui-ci.
-
-## Aperçu sans lancer de jeu
-
-`tools/preview.py` applique le même algorithme à une capture d'écran :
-
-```bash
-pip install numpy pillow
-python3 tools/preview.py capture.png sortie.png --preset moderne
-python3 tools/preview.py capture.png sortie.png --preset lisible --palette 2 --bg 1
-python3 tools/preview.py capture.png sortie.png --palette 0 --luma-weight 0.5 --outline 0.6
+```
+cd src/RetroFilter
+dotnet build
+bin\Debug\net8.0-windows10.0.26100.0\RetroFilter.exe
 ```
 
-Options : `--preset`, `--res`, `--palette`, `--bg`, `--luma-weight`, `--levels`, `--penalty`, `--outline`, `--brightness`, `--contrast`, `--saturation`, `--aspect43`. Pratique pour comparer les réglages avant de les reporter dans ShaderGlass.
+## Utilisation
+
+1. Ouvrez ce que vous voulez filtrer. Pour un jeu, choisissez le mode **fenêtré** ou **fenêtré sans bordure** dans ses options d'affichage.
+2. Dans retro-filter, choisissez la fenêtre dans la liste.
+3. Choisissez le style :
+   - **Carte** : CGA (4 couleurs, 1981) ou EGA (16 couleurs, 1984).
+   - **Mode** : Moderne (tramage fin, à la résolution de l'écran) ou Historique (320×200, gros pixels comme à l'époque).
+   - **Palette** : les pastilles montrent les couleurs de chaque palette.
+4. Cliquez sur **Poser le filtre**.
+
+La croix de la fenêtre la cache seulement : l'app continue dans la zone de notification. Un clic sur son icône la rouvre, un clic droit donne les mêmes choix et permet de quitter.
+
+### Raccourcis
+
+| Raccourci | Effet |
+|---|---|
+| Ctrl+Alt+R | Pose le filtre sur la fenêtre active, ou le retire |
+| Ctrl+Alt+S | Pendant le filtre : enregistre l'image filtrée et l'image d'origine en PNG dans `Images\retro-filter` |
+
+Ctrl+Alt+R est le seul raccourci réservé en permanence. D'autres raccourcis (carte, mode et palette suivants, barre d'informations) s'activent dans « Avancé ».
+
+## Limites connues
+
+- **Plein écran exclusif** : le filtre ne peut pas s'afficher par-dessus. Passez le jeu en fenêtré sans bordure.
+- **Vidéos protégées** (la plupart des services de vidéo payants) : Windows renvoie une image noire à la capture.
+- **Retard** : l'image filtrée arrive au moins une image après celle du programme filtré.
+- **HDR** : la capture se fait en 8 bits par couleur, le rendu d'un jeu en HDR n'a pas été testé.
+
+## Vie privée et système
+
+- L'app ne fait aucun accès réseau. Les images capturées restent sur votre machine.
+- Les réglages sont enregistrés dans `%APPDATA%\retro-filter\settings.json`.
+- Pour rester fluide quand un jeu occupe toute la carte graphique, l'app demande à Windows la priorité GPU « temps réel ». Aucun droit administrateur n'est nécessaire.
 
 ## Comment ça marche
 
-Trois passes :
+1. **Capture** de la fenêtre par Windows Graphics Capture, la même technique qu'OBS.
+2. **Tramage** dans un shader HLSL (`src/RetroFilter/Shaders/dither.hlsl`), pour chaque point de l'image :
+   - moyenne de la zone en lumière linéaire ;
+   - recherche de la paire de couleurs de la palette et de la proportion de mélange qui imitent le mieux la couleur (tramage de Yliluoma), l'écart étant mesuré dans l'espace OKLab, proche de la perception humaine ;
+   - une matrice de Bayer 4×4 décide laquelle des deux couleurs afficher.
+3. **Affichage** dans une fenêtre transparente aux clics, maintenue juste au-dessus de la fenêtre filtrée.
 
-1. **Préparation** (`cga-prepare.slang`, à la résolution virtuelle) : chaque gros pixel est la moyenne de 8×8 échantillons de l'image du jeu, calculée en lumière linéaire. Puis luminosité, contraste, saturation, et stabilité (comparaison avec l'image précédente).
-2. **Palette** (`cga.slang`, à la résolution virtuelle) :
-   - **Contours** : détection des bords par filtre de Sobel sur les gros pixels voisins.
-   - **Tramage de Yliluoma** : pour chaque paire de couleurs de la palette, on calcule la proportion de mélange qui imite le mieux le pixel, et on garde la meilleure paire. Les couleurs sont comparées dans l'espace OKLab, proche de la perception humaine. Le mélange se fait en sRGB : avec des pixels aussi gros, l'œil voit les points au lieu de les fusionner.
-   - **Bayer 4×4** : la matrice décide, pixel par pixel, laquelle des deux couleurs afficher.
-3. **Sortie** (`cga-output.slang`) : agrandissement sans lissage à la taille de l'écran, avec format 4:3 en option.
+Les mélanges de chaque paire de couleurs sont calculés une fois par le programme (`DitherTable.cs`) et non pour chaque point : le traitement prend de l'ordre de 1 à 4 millisecondes par image en 1920×1080 sur une carte graphique de 2018.
 
-Les deux premières passes ne travaillent que sur 64 000 à 70 000 pixels : le coût GPU est négligeable.
+## Contenu du dépôt
+
+| Dossier | Contenu |
+|---|---|
+| `src/RetroFilter/` | L'app (C#, .NET 8, WinForms, Direct3D 11 avec [Vortice.Windows](https://github.com/amerkoleci/Vortice.Windows)) |
+| `shaders/` | Les shaders d'origine au format RetroArch `.slang`, qui ont servi à mettre l'algorithme au point. Voir [shaders/README.md](shaders/README.md) |
+| `tools/` | `preview.py` applique l'algorithme à une capture d'écran ; `compare_gpu.py` compare la sortie de l'app à ce simulateur |
+
+### Modes de test en ligne de commande
+
+`RetroFilter.exe` accepte des modes sans interface, utiles pour vérifier un changement :
+
+| Commande | Effet |
+|---|---|
+| `--snapshot "<titre>" <dossier>` | Capture une fenêtre et enregistre l'image d'origine et l'image filtrée |
+| `--verify "<titre>"` | Compare le shader rapide au shader de référence, pour toutes les palettes |
+| `--bench "<titre>"` | Mesure le temps de traitement par image |
+| `--fps "<titre>" <0\|1\|2>` | Mesure le débit de capture selon la priorité GPU |
+| `--overlay "<titre>" <dossier>` | Vérifie que le filtre reste collé à la fenêtre et que les clics le traversent |
+| `--ui-test <dossier>` | Enregistre des captures de l'interface |
+
+`<titre>` est une partie du titre de la fenêtre visée.
+
+## Licence
+
+[MIT](LICENSE).

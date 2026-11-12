@@ -3,3 +3,4 @@ obj/
 .vs/
 *.user
 __pycache__/
+CLAUDE.md
