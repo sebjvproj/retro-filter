@@ -14,7 +14,7 @@ A game, a video, a web page: retro-filter shows them in CGA (4 colors) or EGA (1
 
 **English** · [Français](README.fr.md)
 
-[Demo page](https://sebjvproj.github.io/retro-filter/en/) · [Usage](#usage) · [Palettes](#palettes) · [Build](#build-and-run) · [How it works](#how-it-works)
+[Demo page](https://sebjvproj.github.io/retro-filter/en/) · [Download](#download) · [Usage](#usage) · [Palettes](#palettes) · [Build](#build-and-run) · [How it works](#how-it-works)
 
 </div>
 
@@ -27,6 +27,15 @@ A game, a video, a web page: retro-filter shows them in CGA (4 colors) or EGA (1
 - **Private.** No network access, everything stays on your machine.
 
 The project is a working prototype, still in development. The interface is available in English and in French.
+
+## Download
+
+**[Download retro-filter for Windows](https://github.com/sebjvproj/retro-filter/releases/latest/download/retro-filter-windows-x64.zip)** (64-bit, Windows 10 or 11)
+
+1. Unzip the file anywhere.
+2. Run **RetroFilter.exe** from the `retro-filter` folder. Nothing else to install.
+
+The app is not signed, so Windows may show "Windows protected your PC" the first time: click **More info**, then **Run anyway**. All versions are on the [releases page](https://github.com/sebjvproj/retro-filter/releases).
 
 ## Two modes
 
@@ -81,7 +90,7 @@ The app starts in French on a French Windows and in English otherwise. You can c
 
 ## Build and run
 
-You need:
+To build the app yourself instead of downloading it, you need:
 
 - Windows 10 version 2004 or later. Windows 11 24H2 is recommended: before that version, Windows limits capture to about 60 frames per second.
 - A graphics card that supports Direct3D 11.

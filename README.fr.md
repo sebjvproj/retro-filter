@@ -14,7 +14,7 @@ Un jeu, une vidéo, une page web : retro-filter les affiche en CGA (4 couleurs) 
 
 [English](README.md) · **Français**
 
-[Présentation](https://sebjvproj.github.io/retro-filter/) · [Utilisation](#utilisation) · [Palettes](#les-palettes) · [Compiler](#compiler-et-lancer) · [Comment ça marche](#comment-ça-marche)
+[Présentation](https://sebjvproj.github.io/retro-filter/) · [Télécharger](#télécharger) · [Utilisation](#utilisation) · [Palettes](#les-palettes) · [Compiler](#compiler-et-lancer) · [Comment ça marche](#comment-ça-marche)
 
 </div>
 
@@ -27,6 +27,15 @@ Un jeu, une vidéo, une page web : retro-filter les affiche en CGA (4 couleurs) 
 - **Privé.** Aucun accès réseau, tout reste sur votre machine.
 
 Le projet est un prototype qui fonctionne, encore en cours de développement. L'interface existe en français et en anglais.
+
+## Télécharger
+
+**[Télécharger retro-filter pour Windows](https://github.com/sebjvproj/retro-filter/releases/latest/download/retro-filter-windows-x64.zip)** (64 bits, Windows 10 ou 11)
+
+1. Décompressez le fichier où vous voulez.
+2. Lancez **RetroFilter.exe** dans le dossier `retro-filter`. Rien d'autre à installer.
+
+L'app n'est pas signée : Windows peut afficher « Windows a protégé votre ordinateur » au premier lancement. Cliquez sur **Informations complémentaires**, puis **Exécuter quand même**. Toutes les versions sont sur la [page des versions](https://github.com/sebjvproj/retro-filter/releases).
 
 ## Deux modes
 
@@ -81,7 +90,7 @@ L'app démarre en français sur un Windows en français, en anglais sinon. La la
 
 ## Compiler et lancer
 
-Il faut :
+Pour compiler l'app vous-même au lieu de la télécharger, il faut :
 
 - Windows 10 version 2004 ou plus récent. Windows 11 24H2 est conseillé : avant cette version, Windows limite la capture à environ 60 images par seconde.
 - Une carte graphique compatible Direct3D 11.

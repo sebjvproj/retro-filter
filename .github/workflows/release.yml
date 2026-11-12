@@ -1,0 +1,42 @@
+# Fabrique la version à télécharger quand on pousse une étiquette « v… » (par exemple v0.1.0) :
+# compile l'app en un seul exe autonome (aucun .NET à installer), l'archive avec ses shaders
+# et crée la « release » GitHub correspondante.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Compiler
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          dotnet publish src/RetroFilter -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true -p:DebugType=none -p:Version=$version `
+            -o out/retro-filter
+
+      - name: Archiver
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE out/retro-filter/LICENSE.txt
+          Compress-Archive -Path out/retro-filter -DestinationPath retro-filter-windows-x64.zip
+
+      - name: Publier
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" retro-filter-windows-x64.zip --title "retro-filter ${{ github.ref_name }}" --notes-file .github/release-notes.md
